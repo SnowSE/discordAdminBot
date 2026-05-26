@@ -1,0 +1,59 @@
+@using Web.Models
+
+<div class="row g-4">
+
+  <div class="col-md-4">
+    <h4>Members <span class="badge bg-secondary">@Members.Count(m => m.User?.Bot != true)</span></h4>
+    <ul class="list-group list-group-flush border rounded" style="max-height:480px;overflow-y:auto">
+      @foreach (var m in Members.Where(m => m.User?.Bot != true).OrderBy(m => m.DisplayName))
+      {
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>@m.DisplayName</span>
+          <small class="text-muted">@m.User?.Username</small>
+        </li>
+      }
+    </ul>
+  </div>
+
+  <div class="col-md-4">
+    <h4>Channels <span class="badge bg-secondary">@Channels.Count(c => c.Type != 4)</span></h4>
+    <ul class="list-group list-group-flush border rounded" style="max-height:480px;overflow-y:auto">
+      @foreach (var c in Channels.Where(c => c.Type != 4).OrderBy(c => c.Position))
+      {
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>@c.Name</span>
+          <span class="badge bg-secondary">@c.TypeName</span>
+        </li>
+      }
+    </ul>
+  </div>
+
+  <div class="col-md-4">
+    <h4>Roles <span class="badge bg-secondary">@Roles.Count(r => r.Name != "@everyone")</span></h4>
+    <ul class="list-group list-group-flush border rounded" style="max-height:480px;overflow-y:auto">
+      @foreach (var r in Roles.Where(r => r.Name != "@everyone").OrderByDescending(r => r.Position))
+      {
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>@r.Name</span>
+          @if (r.Color != 0)
+          {
+            <span
+            style="width:14px;height:14px;background:#@(r.Color.ToString("x6"));border-radius:50%;display:inline-block;flex-shrink:0"></span>
+          }
+        </li>
+      }
+    </ul>
+  </div>
+
+</div>
+
+@code {
+  [Parameter]
+  public List<GuildMember> Members { get; set; } = [];
+
+  [Parameter]
+  public List<GuildChannel> Channels { get; set; } = [];
+
+  [Parameter]
+  public List<GuildRole> Roles { get; set; } = [];
+}

@@ -1,0 +1,46 @@
+@using Web.Services
+@inject DiscordService Discord
+
+<button class="btn btn-outline-primary btn-sm" @onclick="SyncAsync" disabled="@_syncing">
+  @if (_syncing)
+  {
+    <span class="spinner-border spinner-border-sm me-1"></span>
+  }
+  Sync
+</button>
+
+@if (_lastSynced is not null)
+{
+  <small class="text-muted">Last synced: @_lastSynced.Value.ToLocalTime().ToString("g")</small>
+}
+
+@code {
+  [CascadingParameter] private LoadingBoundaryContext? Loading { get; set; }
+  private bool _syncing = false;
+  private DateTime? _lastSynced;
+
+  protected override async Task OnInitializedAsync()
+  {
+    DiscordService.DbDataChanged += Hydrate;
+    await Hydrate();
+  }
+
+  public void Dispose()
+  {
+    DiscordService.DbDataChanged -= Hydrate;
+  }
+
+  private async Task Hydrate()
+  {
+    var stopLoading = Loading?.Start();
+    _lastSynced = await Discord.GetLastSyncedAtAsync();
+    stopLoading?.Invoke();
+  }
+
+  private async Task SyncAsync()
+  {
+    _syncing = true;
+    await Discord.SyncAsync();
+    _syncing = false;
+  }
+}

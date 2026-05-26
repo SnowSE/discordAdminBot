@@ -1,0 +1,32 @@
+@rendermode InteractiveServer
+@inherits ErrorBoundary
+
+<CascadingValue Value="Context">
+  @if (CurrentException != null)
+  {
+    <p>Something went wrong: @CurrentException.Message</p>
+  }
+  else
+  {
+    <div class="loading-boundary-container">
+      <div class="loading-boundary-content">
+        @ChildContent
+      </div>
+      @if (Context.IsLoading)
+      {
+        <div class="loading-boundary-overlay">
+          <div class="loading-spinner"></div>
+        </div>
+      }
+    </div>
+  }
+</CascadingValue>
+
+@code {
+  private LoadingBoundaryContext Context { get; set; } = new();
+
+  protected override void OnInitialized()
+  {
+    Context.OnChange = () => InvokeAsync(StateHasChanged);
+  }
+}

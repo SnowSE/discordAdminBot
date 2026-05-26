@@ -42,6 +42,12 @@ public class CacheDb
           data       TEXT    NOT NULL,
           updated_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
       );
+
+      CREATE TABLE IF NOT EXISTS discord_shares (
+          id         TEXT    NOT NULL PRIMARY KEY,
+          data       TEXT    NOT NULL,
+          updated_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
       """
     );
   }

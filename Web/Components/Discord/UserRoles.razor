@@ -1,0 +1,148 @@
+@using Web.Models
+@using Web.Services
+@inject DiscordService Discord
+
+@if (_creatingRole)
+{
+  <div class="card mb-4" style="max-width:400px">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <strong>New Role</strong>
+      <button type="button" class="btn-close btn-sm" aria-label="Close" @onclick="() => _creatingRole = false"></button>
+    </div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label">Name</label>
+        <input @bind="_roleName" class="form-control" placeholder="Role name" />
+      </div>
+      <button type="button" class="btn btn-primary btn-sm" @onclick="CreateRoleAsync" disabled="@_creating">
+        @if (_creating)
+        {
+          <span class="spinner-border spinner-border-sm me-1"></span>
+        }
+        Create
+      </button>
+    </div>
+  </div>
+}
+else
+{
+  <button type="button" class="btn btn-outline-primary btn-sm mb-3" @onclick="() => _creatingRole = true">
+    + New Role
+  </button>
+}
+
+<div class="row g-4">
+  @foreach (var assignment in RoleAssignments)
+  {
+    <div class="col-md-6 col-lg-4">
+      <div class="card h-100">
+        <div class="card-header d-flex align-items-center gap-2">
+          @if (assignment.Role.Color != 0)
+          {
+            <span
+            style="width:14px;height:14px;background:#@(assignment.Role.Color.ToString("x6"));border-radius:50%;display:inline-block;flex-shrink:0"></span>
+          }
+          <strong>@assignment.Role.Name</strong>
+          <span class="badge bg-secondary ms-auto">@assignment.Members.Count</span>
+          <button type="button" class="btn btn-outline-danger btn-sm ms-auto"
+                  @onclick="() => DeleteRoleAsync(assignment.Role.Id)">
+            Delete
+          </button>
+        </div>
+        @if (assignment.Members.Count > 0)
+        {
+          <ul class="list-group list-group-flush">
+            @foreach (var member in assignment.Members.OrderBy(m => m.DisplayName))
+            {
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>@member.DisplayName</span>
+                <button type="button" class="btn-close btn-sm" aria-label="Remove"
+                        @onclick="() => RemoveRoleFromMemberAsync(member.User!.Id, assignment.Role.Id)"></button>
+              </li>
+            }
+          </ul>
+        }
+        else
+        {
+          <div class="card-body text-muted">No members assigned</div>
+        }
+
+        @{
+          var unassignedMembers = _allMembers.Where(m => !assignment.Members.Any(am => am.User?.Id == m.User?.Id)).ToList();
+        }
+        @if (unassignedMembers.Count > 0)
+        {
+          <div class="card-footer">
+            <div class="input-group">
+              <select class="form-select form-select-sm" id="addMember_@assignment.Role.Id"
+                      @onchange="(e) => HandleAddMember(assignment.Role.Id, e)">
+                <option value="">-- add member --</option>
+                @foreach (var m in unassignedMembers.OrderBy(m => m.DisplayName))
+                {
+                  <option value="@m.User!.Id">@m.DisplayName</option>
+                }
+              </select>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>
+
+@code {
+  private List<RoleAssignment> RoleAssignments = [];
+
+  private bool _creatingRole = false;
+  private bool _creating = false;
+  private string _roleName = "";
+
+  protected override async Task OnInitializedAsync()
+  {
+    DiscordService.DbDataChanged += Hydrate;
+    await Hydrate();
+  }
+
+  public void Dispose()
+  {
+    DiscordService.DbDataChanged -= Hydrate;
+  }
+
+  private async Task Hydrate()
+  {
+    RoleAssignments = await Discord.GetRoleAssignmentsAsync();
+    _allMembers = await Discord.GetMembersAsync();
+  }
+
+  private List<GuildMember> _allMembers = [];
+
+  private async Task CreateRoleAsync()
+  {
+    if (string.IsNullOrWhiteSpace(_roleName))
+      return;
+
+    _creating = true;
+    await Discord.CreateRoleAsync(_roleName, 0, true);
+    _creatingRole = false;
+    _roleName = "";
+    _creating = false;
+  }
+
+  private void HandleAddMember(string roleId, ChangeEventArgs e)
+  {
+    var memberId = (string?)e.Value ?? "";
+    if (!string.IsNullOrWhiteSpace(memberId))
+      _ = AddRoleToMemberAsync(memberId, roleId);
+  }
+
+  private async Task AddRoleToMemberAsync(string memberId, string roleId) =>
+    await Discord.AddRoleToMemberAsync(memberId, roleId);
+
+  private async Task RemoveRoleFromMemberAsync(string memberId, string roleId) =>
+    await Discord.RemoveRoleFromMemberAsync(memberId, roleId);
+
+  private async Task DeleteRoleAsync(string roleId) =>
+    await Discord.DeleteRoleAsync(roleId);
+
+ 
+}

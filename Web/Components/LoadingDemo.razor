@@ -1,0 +1,26 @@
+@if (name != null)
+{
+  <h2>Welcome, @name</h2>
+  <p>Email: @email</p>
+}
+else
+{
+  <button @onclick="LoadUser">Load User</button>
+}
+
+@code {
+  [CascadingParameter] private LoadingBoundaryContext? Loading { get; set; }
+  private string name;
+  private string email;
+
+  private async Task LoadUser()
+  {
+    var stop = Loading?.Start();
+    await InvokeAsync(StateHasChanged);
+    await Task.Delay(2000); // simulate network
+    name = "Jane Doe";
+    email = "jane@example.com";
+    stop?.Invoke();
+    await InvokeAsync(StateHasChanged);
+  }
+}

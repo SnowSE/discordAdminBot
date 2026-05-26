@@ -25,8 +25,9 @@ builder.Services.AddHttpClient(
 );
 
 builder.Services.AddSingleton<CacheDb>();
+builder.Services.AddSingleton<DiscordDB>();
+builder.Services.AddSingleton<DiscordAPI>();
 builder.Services.AddSingleton<DiscordService>();
-builder.Services.AddSingleton<EmailService>();
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 

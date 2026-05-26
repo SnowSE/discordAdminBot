@@ -1,0 +1,90 @@
+@using Web.Models
+@using Web.Services
+@inject DiscordService Discord
+
+<div class="card">
+  <div class="card-header">
+    <h5 class="mb-0">Server Invite</h5>
+  </div>
+  <div class="card-body">
+    @if (_shares.Count > 0)
+    {
+      <div class="mb-3">
+        <label class="form-label">Active Invite Links</label>
+        @foreach (var share in _shares)
+        {
+          <div class="input-group mb-2">
+            <input type="text" class="form-control" readonly value="@share.Url" />
+            <button class="btn btn-outline-secondary" type="button" @onclick="() => CopyToClipboardAsync(share.Url)">
+              Copy
+            </button>
+          </div>
+        }
+      </div>
+    }
+    else
+    {
+      <p class="text-muted mb-3">No active invite links.</p>
+    }
+
+    <div class="mb-3">
+      <label for="invite-channel" class="form-label">Channel</label>
+      <select class="form-select" @bind="_selectedChannelId">
+        <option value="">-- select a channel --</option>
+        @foreach (var c in _channels.Where(c => c.Type != 4).OrderBy(c => c.Position))
+        {
+          <option value="@c.Id">@c.Name (@c.TypeName)</option>
+        }
+      </select>
+    </div>
+
+    <button type="button" class="btn btn-primary btn-sm"
+            disabled="@(_generating || string.IsNullOrWhiteSpace(_selectedChannelId))" @onclick="GenerateInviteAsync">
+      @if (_generating)
+      {
+        <span class="spinner-border spinner-border-sm me-1"></span>
+      }
+      Generate Invite
+    </button>
+  </div>
+</div>
+
+@code {
+  private List<GuildChannel> _channels = [];
+  private List<DiscordInvite> _shares = [];
+  private string? _selectedChannelId;
+  private bool _generating = false;
+
+  protected override async Task OnInitializedAsync()
+  {
+    DiscordService.DbDataChanged += Hydrate;
+    await Hydrate();
+  }
+
+  public void Dispose()
+  {
+    DiscordService.DbDataChanged -= Hydrate;
+  }
+
+  private async Task Hydrate()
+  {
+    _channels = await Discord.GetChannelsAsync();
+    _shares = await Discord.GetSharesAsync();
+  }
+
+  private async Task GenerateInviteAsync()
+  {
+    if (string.IsNullOrWhiteSpace(_selectedChannelId))
+      return;
+
+    _generating = true;
+    await Discord.GenerateShareAsync(_selectedChannelId!);
+    _generating = false;
+  }
+
+  private async Task CopyToClipboardAsync(string text)
+  {
+    // Blazor Web Server doesn't have direct clipboard access without JS interop
+    // For now, the user can select and copy manually
+  }
+}
