@@ -1,7 +1,148 @@
 ﻿@page "/"
+@rendermode InteractiveServer
+@inject Web.Services.DiscordService Discord
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Discord Overview</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="d-flex align-items-center gap-3 mb-3">
+  <h1 class="mb-0">Discord Overview</h1>
+  <button class="btn btn-outline-primary btn-sm" @onclick="SyncAsync" disabled="@_syncing">
+    @if (_syncing)
+    {
+      <span class="spinner-border spinner-border-sm me-1"></span>
+    }
+    Sync
+  </button>
+  @if (_lastSynced is not null)
+  {
+    <small class="text-muted">Last synced: @_lastSynced.Value.ToLocalTime().ToString("g")</small>
+  }
+</div>
 
-Welcome to your new app.
+@if (_syncError is not null)
+{
+  <div class="alert alert-danger">@_syncError</div>
+}
+
+@if (_loading)
+{
+  <p><em>Loading cached data...</em></p>
+}
+else if (_error is not null)
+{
+  <div class="alert alert-danger">@_error</div>
+}
+else
+{
+  <div class="row g-4">
+
+    <div class="col-md-4">
+      <h4>Members <span class="badge bg-secondary">@(_members.Count(m => m.User?.Bot != true))</span></h4>
+      <ul class="list-group list-group-flush border rounded" style="max-height:480px;overflow-y:auto">
+        @foreach (var m in _members.Where(m => m.User?.Bot != true).OrderBy(m => m.DisplayName))
+        {
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>@m.DisplayName</span>
+            <small class="text-muted">@m.User?.Username</small>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <div class="col-md-4">
+      <h4>Channels <span class="badge bg-secondary">@(_channels.Count(c => c.Type != 4))</span></h4>
+      <ul class="list-group list-group-flush border rounded" style="max-height:480px;overflow-y:auto">
+        @foreach (var c in _channels.Where(c => c.Type != 4).OrderBy(c => c.Position))
+        {
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>@c.Name</span>
+            <span class="badge bg-secondary">@c.TypeName</span>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <div class="col-md-4">
+      <h4>Roles <span class="badge bg-secondary">@(_roles.Count(r => r.Name != "@everyone"))</span></h4>
+      <ul class="list-group list-group-flush border rounded" style="max-height:480px;overflow-y:auto">
+        @foreach (var r in _roles.Where(r => r.Name != "@everyone").OrderByDescending(r => r.Position))
+        {
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span>@r.Name</span>
+            @if (r.Color != 0)
+            {
+              <span
+              style="width:14px;height:14px;background:#@(r.Color.ToString("x6"));border-radius:50%;display:inline-block;flex-shrink:0"></span>
+            }
+          </li>
+        }
+      </ul>
+    </div>
+
+  </div>
+}
+
+@code {
+  private List<Web.Models.GuildMember> _members = [];
+  private List<Web.Models.GuildChannel> _channels = [];
+  private List<Web.Models.GuildRole> _roles = [];
+  private bool _loading = true;
+  private bool _syncing = false;
+  private string? _error;
+  private string? _syncError;
+  private DateTime? _lastSynced;
+
+  protected override async Task OnInitializedAsync()
+  {
+    _lastSynced = Discord.GetLastSyncedAt();
+    try
+    {
+      var membersTask = Discord.GetMembersAsync();
+      var channelsTask = Discord.GetChannelsAsync();
+      var rolesTask = Discord.GetRolesAsync();
+
+      await Task.WhenAll(membersTask, channelsTask, rolesTask);
+
+      _members = membersTask.Result;
+      _channels = channelsTask.Result;
+      _roles = rolesTask.Result;
+    }
+    catch (Exception ex)
+    {
+      _error = $"Failed to load cached data: {ex.Message}";
+    }
+    finally
+    {
+      _loading = false;
+    }
+  }
+
+  private async Task SyncAsync()
+  {
+    _syncing = true;
+    _syncError = null;
+    try
+    {
+      await Discord.SyncAsync();
+      _lastSynced = Discord.GetLastSyncedAt();
+
+      var membersTask = Discord.GetMembersAsync();
+      var channelsTask = Discord.GetChannelsAsync();
+      var rolesTask = Discord.GetRolesAsync();
+
+      await Task.WhenAll(membersTask, channelsTask, rolesTask);
+
+      _members = membersTask.Result;
+      _channels = channelsTask.Result;
+      _roles = rolesTask.Result;
+    }
+    catch (Exception ex)
+    {
+      _syncError = $"Sync failed: {ex.Message}";
+    }
+    finally
+    {
+      _syncing = false;
+    }
+  }
+}

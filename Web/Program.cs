@@ -1,28 +1,45 @@
+using System.Net.Http.Headers;
+using dotenv.net;
+using Web;
 using Web.Components;
+using Web.Services;
+
+DotEnv.Load(options: new DotEnvOptions(probeForEnv: true, probeLevelsToSearch: 5));
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+var appConfig = AppConfig.FromConfiguration(builder.Configuration);
+builder.Services.AddSingleton(appConfig);
+
+builder.Services.AddHttpClient(
+  "discord",
+  client =>
+  {
+    client.BaseAddress = new Uri("https://discord.com/api/v10/");
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+      "Bot",
+      appConfig.DiscordBotToken
+    );
+    client.DefaultRequestHeaders.Add("User-Agent", "DiscordAdminBot/1.0 (ASP.NET Core)");
+  }
+);
+
+builder.Services.AddSingleton<CacheDb>();
+builder.Services.AddSingleton<DiscordService>();
+builder.Services.AddSingleton<EmailService>();
+
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
+  app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
-
-app.UseHttpsRedirection();
-
 
 app.UseAntiforgery();
 
 app.MapStaticAssets();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();
