@@ -1,5 +1,7 @@
+@using Web.Components.Shared
 @using Web.Services
 @inject DiscordService Discord
+@inherits LoadingChild;
 
 <button class="btn btn-outline-primary btn-sm" @onclick="SyncAsync" disabled="@_syncing">
   @if (_syncing)
@@ -15,14 +17,13 @@
 }
 
 @code {
-  [CascadingParameter] private LoadingBoundaryContext? Loading { get; set; }
   private bool _syncing = false;
   private DateTime? _lastSynced;
 
   protected override async Task OnInitializedAsync()
   {
     DiscordService.DbDataChanged += Hydrate;
-    await Hydrate();
+    await base.OnInitializedAsync();
   }
 
   public void Dispose()
@@ -30,11 +31,9 @@
     DiscordService.DbDataChanged -= Hydrate;
   }
 
-  private async Task Hydrate()
+  protected override async Task Hydrate()
   {
-    var stopLoading = Loading?.Start();
     _lastSynced = await Discord.GetLastSyncedAtAsync();
-    stopLoading?.Invoke();
   }
 
   private async Task SyncAsync()

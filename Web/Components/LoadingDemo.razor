@@ -15,12 +15,9 @@ else
 
   private async Task LoadUser()
   {
-    var stop = Loading?.Start();
-    await InvokeAsync(StateHasChanged);
+    using var loading = Loading?.Start(() => InvokeAsync(StateHasChanged));
     await Task.Delay(2000); // simulate network
     name = "Jane Doe";
     email = "jane@example.com";
-    stop?.Invoke();
-    await InvokeAsync(StateHasChanged);
   }
 }
