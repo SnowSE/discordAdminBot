@@ -39,7 +39,10 @@
           <option value="">-- select a channel --</option>
           @foreach (var c in _channels.Where(c => c.Type != 4).OrderBy(c => (int?)c.Position ?? int.MaxValue))
           {
-            <option value="@c.Id">@c.Name (@c.TypeName)</option>
+            if (c.Name != null)
+            {
+              <option value="@c.Id">@c.Name (@c.TypeName)</option>
+            }
           }
         </select>
       </div>
@@ -99,6 +102,7 @@
 
   private async Task CopyToClipboardAsync(string text)
   {
+    await Task.CompletedTask;
     // Blazor Web Server doesn't have direct clipboard access without JS interop
     // For now, the user can select and copy manually
   }

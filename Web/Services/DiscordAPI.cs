@@ -142,7 +142,7 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
   private async Task<List<GuildMember>> FetchMembersFromDiscordAsync(CancellationToken ct)
   {
     var members = new List<GuildMember>();
-    string? after = null;
+    DiscordUserId? after = null;
     var again = true;
 
     while (again)

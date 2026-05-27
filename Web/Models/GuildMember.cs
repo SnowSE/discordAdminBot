@@ -8,14 +8,5 @@ public record GuildMember(
 )
 {
   public string DisplayName =>
-    ValueAsNonEmptyString(Nick)
-    ?? ValueAsNonEmptyString(User?.GlobalName)
-    ?? ValueAsNonEmptyString(User?.Username)
-    ?? "(unknown)";
-
-  private static string? ValueAsNonEmptyString(TypedString? value)
-  {
-    var s = (string?)value;
-    return string.IsNullOrWhiteSpace(s) ? null : s;
-  }
+    Nick?.Value ?? User?.GlobalName?.Value ?? User?.Username?.Value ?? "(unknown)";
 }

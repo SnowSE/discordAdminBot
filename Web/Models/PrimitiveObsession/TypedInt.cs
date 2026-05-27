@@ -88,6 +88,6 @@ public sealed class TypedIntJsonConverter<TTypedInt> : JsonConverter<TTypedInt>
 
   public override void Write(Utf8JsonWriter writer, TTypedInt value, JsonSerializerOptions options)
   {
-    writer.WriteNumberValue((int)value);
+    writer.WriteNumberValue(value.Value);
   }
 }

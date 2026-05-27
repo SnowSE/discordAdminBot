@@ -16,7 +16,10 @@ public abstract record TypedString : IComparable<TypedString>
     this.value = value;
   }
 
-public static implicit operator string(TypedString typedString) => typedString.value;
+  // avoid using whenever possible
+  public string Value => value;
+
+  public static implicit operator string(TypedString typedString) => typedString.value;
 
   public sealed override string ToString() => value;
 

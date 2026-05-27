@@ -27,12 +27,14 @@
   [Inject]
   private DiscordService Discord { get; set; } = default!;
 
-  private string? UserId => Member.User?.Id;
+  private DiscordUserId? UserId => Member?.User?.Id;
   private bool HasRole => Member.Roles.Contains(Role.Id);
   private bool _working = false;
 
   private async Task AddToRoleAsync()
   {
+    if (Role.Id == null)
+      throw new InvalidOperationException($"Cannot add role '{Role.Name}' to member '{Member.DisplayName}' — role has no ID.");
     var userId = UserId ?? throw new InvalidOperationException($"Cannot add role '{Role.Name}' ({Role.Id}) — member '{Member.DisplayName}' has no associated user.");
     _working = true;
     await Discord.AddRoleToMemberAsync(userId, Role.Id);
@@ -42,6 +44,8 @@
 
   private async Task RemoveFromRoleAsync()
   {
+    if (Role.Id == null)
+      throw new InvalidOperationException($"Cannot remove role '{Role.Name}' from member '{Member.DisplayName}' — role has no ID.");
     var userId = UserId ?? throw new InvalidOperationException($"Cannot remove role '{Role.Name}' ({Role.Id}) — member '{Member.DisplayName}' has no associated user.");
     _working = true;
     await Discord.RemoveRoleFromMemberAsync(userId, Role.Id);
