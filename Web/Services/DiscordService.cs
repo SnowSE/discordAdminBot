@@ -6,18 +6,52 @@ public class DiscordService(DiscordAPI api, DiscordDB db)
 {
   public static event Func<Task>? DbDataChanged;
 
-  public async Task SyncAsync(CancellationToken ct = default)
+  public async Task SyncAllAsync(CancellationToken ct = default)
   {
-    var membersTask = api.FetchMembersAsync(ct);
-    var channelsTask = api.FetchChannelsAsync(ct);
-    var rolesTask = api.FetchRolesAsync(ct);
+    var membersTask = SyncMembersAsync(skipNotify: true, ct: ct);
+    var channelsTask = SyncChannelsAsync(skipNotify: true, ct: ct);
+    var rolesTask = SyncRolesAsync(skipNotify: true, ct: ct);
+    var invitesTask = SyncInvitesAsync(skipNotify: true, ct: ct);
 
-    await Task.WhenAll(membersTask, channelsTask, rolesTask);
-
-    await db.SaveMembersAsync(membersTask.Result);
-    await db.SaveChannelsAsync(channelsTask.Result);
-    await db.SaveRolesAsync(rolesTask.Result);
+    await Task.WhenAll(membersTask, channelsTask, rolesTask, invitesTask);
     DbDataChanged?.Invoke();
+  }
+
+  public async Task SyncMembersAsync(bool skipNotify = false, CancellationToken ct = default)
+  {
+    var members = await api.FetchMembersAsync(ct);
+    var roleAssignments = members
+      .SelectMany(m => m.Roles.Select(roleId => (roleId, memberId: m.User?.Id ?? "")))
+      .ToList();
+
+    await db.SaveMembersAsync(members);
+    await db.SaveRoleAssignmentsAsync(roleAssignments);
+    if (!skipNotify)
+      DbDataChanged?.Invoke();
+  }
+
+  public async Task SyncChannelsAsync(bool skipNotify = false, CancellationToken ct = default)
+  {
+    var channels = await api.FetchChannelsAsync(ct);
+    await db.SaveChannelsAsync(channels);
+    if (!skipNotify)
+      DbDataChanged?.Invoke();
+  }
+
+  public async Task SyncRolesAsync(bool skipNotify = false, CancellationToken ct = default)
+  {
+    var roles = await api.FetchRolesAsync(ct);
+    await db.SaveRolesAsync(roles);
+    if (!skipNotify)
+      DbDataChanged?.Invoke();
+  }
+
+  public async Task SyncInvitesAsync(bool skipNotify = false, CancellationToken ct = default)
+  {
+    var invites = await api.FetchInvitesAsync(ct);
+    await db.SaveSharesAsync(invites);
+    if (!skipNotify)
+      DbDataChanged?.Invoke();
   }
 
   public Task<List<GuildMember>> GetMembersAsync() => db.GetMembersAsync();
@@ -45,14 +79,20 @@ public class DiscordService(DiscordAPI api, DiscordDB db)
   {
     var roles = await db.GetRolesAsync();
     var members = await db.GetMembersAsync();
+    var roleMemberMap = await db.GetRoleAssignmentsAsync();
+
+    var memberMap = members.ToDictionary(m => m.User?.Id ?? "", m => m);
 
     return roles
       .Where(r => r.Name != "@everyone")
       .OrderByDescending(r => r.Position)
       .Select(role =>
       {
-        var roleId = role.Id;
-        var assignedMembers = members.Where(m => m.Roles.Contains(roleId)).ToList();
+        var assignedMemberIds = roleMemberMap.GetValueOrDefault(role.Id, []);
+        var assignedMembers = assignedMemberIds
+          .Select(memberId => memberMap.GetValueOrDefault(memberId))
+          .OfType<GuildMember>()
+          .ToList();
         return new RoleAssignment(role, assignedMembers);
       })
       .ToList();

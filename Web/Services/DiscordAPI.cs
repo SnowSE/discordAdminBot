@@ -32,6 +32,15 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     (await _http.GetFromJsonAsync<List<GuildRole>>($"guilds/{_guildId}/roles", JsonOptions, ct))
     ?? [];
 
+  public async Task<List<DiscordInvite>> FetchInvitesAsync(CancellationToken ct = default) =>
+    (
+      await _http.GetFromJsonAsync<List<DiscordInvite>>(
+        $"guilds/{_guildId}/invites",
+        JsonOptions,
+        ct
+      )
+    ) ?? [];
+
   public async Task<DiscordInvite> CreateInviteAsync(
     string channelId,
     CancellationToken ct = default
@@ -86,15 +95,9 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     CancellationToken ct = default
   )
   {
-    var member = await FetchMemberAsync(memberId, ct);
-    var currentRoles = member.Roles.ToList();
-    if (!currentRoles.Contains(roleId))
-      currentRoles.Add(roleId);
-
-    var response = await _http.PutAsJsonAsync(
-      $"guilds/{_guildId}/members/{memberId}",
-      new { roles = currentRoles },
-      JsonOptions,
+    var response = await _http.PutAsync(
+      $"guilds/{_guildId}/members/{memberId}/roles/{roleId}",
+      null,
       ct
     );
     response.EnsureSuccessStatusCode();
@@ -106,14 +109,8 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     CancellationToken ct = default
   )
   {
-    var member = await FetchMemberAsync(memberId, ct);
-    var currentRoles = member.Roles.ToList();
-    currentRoles.Remove(roleId);
-
-    var response = await _http.PutAsJsonAsync(
-      $"guilds/{_guildId}/members/{memberId}",
-      new { roles = currentRoles },
-      JsonOptions,
+    var response = await _http.DeleteAsync(
+      $"guilds/{_guildId}/members/{memberId}/roles/{roleId}",
       ct
     );
     response.EnsureSuccessStatusCode();

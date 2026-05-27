@@ -1,5 +1,6 @@
 @using Web.Models
 @using Web.Services
+@using Web.Components.Shared
 @inject DiscordService Discord
 
 @if (_creatingRole)
@@ -9,19 +10,21 @@
       <strong>New Role</strong>
       <button type="button" class="btn-close btn-sm" aria-label="Close" @onclick="() => _creatingRole = false"></button>
     </div>
-    <div class="card-body">
-      <div class="mb-3">
-        <label class="form-label">Name</label>
-        <input @bind="_roleName" class="form-control" placeholder="Role name" />
+    <form @onsubmit="CreateRoleAsync" @onsubmit:preventDefault>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Name</label>
+          <input @bind="_roleName" class="form-control" placeholder="Role name" />
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" disabled="@_creating">
+          @if (_creating)
+          {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+          }
+          Create
+        </button>
       </div>
-      <button type="button" class="btn btn-primary btn-sm" @onclick="CreateRoleAsync" disabled="@_creating">
-        @if (_creating)
-        {
-          <span class="spinner-border spinner-border-sm me-1"></span>
-        }
-        Create
-      </button>
-    </div>
+    </form>
   </div>
 }
 else
@@ -32,7 +35,7 @@ else
 }
 
 <div class="row g-4">
-  @foreach (var assignment in RoleAssignments)
+  @foreach (var assignment in roleAssignments)
   {
     <div class="col-md-6 col-lg-4">
       <div class="card h-100">
@@ -44,10 +47,11 @@ else
           }
           <strong>@assignment.Role.Name</strong>
           <span class="badge bg-secondary ms-auto">@assignment.Members.Count</span>
-          <button type="button" class="btn btn-outline-danger btn-sm ms-auto"
-                  @onclick="() => DeleteRoleAsync(assignment.Role.Id)">
-            Delete
-          </button>
+          <form @onsubmit="() => DeleteRoleAsync(assignment.Role.Id)" @onsubmit:preventDefault style="display:contents">
+            <button type="submit" class="btn btn-outline-danger btn-sm ms-auto">
+              Delete
+            </button>
+          </form>
         </div>
         @if (assignment.Members.Count > 0)
         {
@@ -56,8 +60,10 @@ else
             {
               <li class="list-group-item d-flex justify-content-between align-items-center">
                 <span>@member.DisplayName</span>
-                <button type="button" class="btn-close btn-sm" aria-label="Remove"
-                        @onclick="() => RemoveRoleFromMemberAsync(member.User!.Id, assignment.Role.Id)"></button>
+                <form @onsubmit="() => RemoveRoleFromMemberAsync(member.User!.Id, assignment.Role.Id)"
+                      @onsubmit:preventDefault style="display:contents">
+                  <button type="submit" class="btn-close btn-sm" aria-label="Remove"></button>
+                </form>
               </li>
             }
           </ul>
@@ -68,21 +74,28 @@ else
         }
 
         @{
-          var unassignedMembers = _allMembers.Where(m => !assignment.Members.Any(am => am.User?.Id == m.User?.Id)).ToList();
+          var unassignedMembers = allMembers.Where(m => !assignment.Members.Any(am => am.User?.Id == m.User?.Id)).ToList();
         }
         @if (unassignedMembers.Count > 0)
         {
+          var roleId = assignment.Role.Id;
+          var pendingId = _pendingMemberIds.GetValueOrDefault(roleId, "");
           <div class="card-footer">
-            <div class="input-group">
-              <select class="form-select form-select-sm" id="addMember_@assignment.Role.Id"
-                      @onchange="(e) => HandleAddMember(assignment.Role.Id, e)">
-                <option value="">-- add member --</option>
-                @foreach (var m in unassignedMembers.OrderBy(m => m.DisplayName))
-                {
-                  <option value="@m.User!.Id">@m.DisplayName</option>
-                }
-              </select>
-            </div>
+            <form @onsubmit="() => AddRoleToMemberAsync(pendingId, roleId)" @onsubmit:preventDefault>
+              <div class="input-group">
+                <select class="form-select form-select-sm" value="@pendingId"
+                        @onchange="(ChangeEventArgs e) => _pendingMemberIds[roleId] = (string?)(e.Value ?? String.Empty) ?? String.Empty">
+                  <option value="">-- add member --</option>
+                  @foreach (var m in unassignedMembers.OrderBy(m => m.DisplayName))
+                  {
+                    <option value="@m.User!.Id">@m.DisplayName</option>
+                  }
+                </select>
+                <button class="btn btn-sm btn-outline-primary" type="submit" disabled="@string.IsNullOrEmpty(pendingId)">
+                  Add
+                </button>
+              </div>
+            </form>
           </div>
         }
       </div>
@@ -91,11 +104,14 @@ else
 </div>
 
 @code {
-  private List<RoleAssignment> RoleAssignments = [];
+  private List<RoleAssignment> roleAssignments = [];
 
   private bool _creatingRole = false;
   private bool _creating = false;
   private string _roleName = "";
+
+  [CascadingParameter]
+  protected LoadingBoundaryContext? Loading { get; set; }
 
   protected override async Task OnInitializedAsync()
   {
@@ -108,19 +124,23 @@ else
     DiscordService.DbDataChanged -= Hydrate;
   }
 
-  private async Task Hydrate()
+  protected async Task Hydrate()
   {
-    RoleAssignments = await Discord.GetRoleAssignmentsAsync();
-    _allMembers = await Discord.GetMembersAsync();
+    using var _ = Loading?.Start();
+    roleAssignments = await Discord.GetRoleAssignmentsAsync();
+    allMembers = await Discord.GetMembersAsync();
+    await InvokeAsync(StateHasChanged);
   }
 
-  private List<GuildMember> _allMembers = [];
+  private List<GuildMember> allMembers = [];
+  private Dictionary<string, string> _pendingMemberIds = new();
 
   private async Task CreateRoleAsync()
   {
     if (string.IsNullOrWhiteSpace(_roleName))
       return;
 
+    using var _ = Loading?.Start();
     _creating = true;
     await Discord.CreateRoleAsync(_roleName, 0, true);
     _creatingRole = false;
@@ -128,21 +148,25 @@ else
     _creating = false;
   }
 
-  private void HandleAddMember(string roleId, ChangeEventArgs e)
+  private async Task AddRoleToMemberAsync(string memberId, string roleId)
   {
-    var memberId = (string?)e.Value ?? "";
-    if (!string.IsNullOrWhiteSpace(memberId))
-      _ = AddRoleToMemberAsync(memberId, roleId);
+    using var _ = Loading?.Start();
+    _pendingMemberIds[roleId] = "";
+    await Discord.AddRoleToMemberAsync(memberId, roleId);
+    await Discord.SyncMembersAsync();
   }
 
-  private async Task AddRoleToMemberAsync(string memberId, string roleId) =>
-    await Discord.AddRoleToMemberAsync(memberId, roleId);
-
-  private async Task RemoveRoleFromMemberAsync(string memberId, string roleId) =>
+  private async Task RemoveRoleFromMemberAsync(string memberId, string roleId)
+  {
+    using var _ = Loading?.Start();
     await Discord.RemoveRoleFromMemberAsync(memberId, roleId);
+    await Discord.SyncMembersAsync();
+  }
 
-  private async Task DeleteRoleAsync(string roleId) =>
+  private async Task DeleteRoleAsync(string roleId)
+  {
+    using var _ = Loading?.Start();
     await Discord.DeleteRoleAsync(roleId);
-
- 
+    await Discord.SyncMembersAsync();
+  }
 }

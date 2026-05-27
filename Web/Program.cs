@@ -11,6 +11,13 @@ var builder = WebApplication.CreateBuilder(args);
 var appConfig = AppConfig.FromConfiguration(builder.Configuration);
 builder.Services.AddSingleton(appConfig);
 
+builder.Services.AddTransient<HttpErrorHandler>();
+
+builder.Services.ConfigureHttpClientDefaults(clientBuilder =>
+{
+  clientBuilder.AddHttpMessageHandler<HttpErrorHandler>();
+});
+
 builder.Services.AddHttpClient(
   "discord",
   client =>

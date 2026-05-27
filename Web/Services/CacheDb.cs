@@ -48,6 +48,12 @@ public class CacheDb
           data       TEXT    NOT NULL,
           updated_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
       );
+
+      CREATE TABLE IF NOT EXISTS discord_role_assignments (
+          role_id    TEXT    NOT NULL,
+          member_id  TEXT    NOT NULL,
+          PRIMARY KEY (role_id, member_id)
+      );
       """
     );
   }

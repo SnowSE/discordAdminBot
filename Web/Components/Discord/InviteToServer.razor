@@ -1,5 +1,6 @@
 @using Web.Models
 @using Web.Services
+@using Web.Components.Shared
 @inject DiscordService Discord
 
 <div class="card">
@@ -13,12 +14,16 @@
         <label class="form-label">Active Invite Links</label>
         @foreach (var share in _shares)
         {
-          <div class="input-group mb-2">
-            <input type="text" class="form-control" readonly value="@share.Url" />
-            <button class="btn btn-outline-secondary" type="button" @onclick="() => CopyToClipboardAsync(share.Url)">
-              Copy
-            </button>
-          </div>
+          var channelName = share.ChannelName ?? "Unknown";
+          <form @onsubmit="() => CopyToClipboardAsync(share.Url)" @onsubmit:preventDefault>
+            <div class="input-group mb-2">
+              <span class="input-group-text">#@channelName</span>
+              <input type="text" class="form-control" readonly value="@share.Url" />
+              <button class="btn btn-outline-secondary" type="submit">
+                Copy
+              </button>
+            </div>
+          </form>
         }
       </div>
     }
@@ -27,29 +32,34 @@
       <p class="text-muted mb-3">No active invite links.</p>
     }
 
-    <div class="mb-3">
-      <label for="invite-channel" class="form-label">Channel</label>
-      <select class="form-select" @bind="_selectedChannelId">
-        <option value="">-- select a channel --</option>
-        @foreach (var c in _channels.Where(c => c.Type != 4).OrderBy(c => c.Position))
-        {
-          <option value="@c.Id">@c.Name (@c.TypeName)</option>
-        }
-      </select>
-    </div>
+    <form @onsubmit="GenerateInviteAsync" @onsubmit:preventDefault>
+      <div class="mb-3">
+        <label for="invite-channel" class="form-label">Channel</label>
+        <select class="form-select" @bind="_selectedChannelId">
+          <option value="">-- select a channel --</option>
+          @foreach (var c in _channels.Where(c => c.Type != 4).OrderBy(c => c.Position))
+          {
+            <option value="@c.Id">@c.Name (@c.TypeName)</option>
+          }
+        </select>
+      </div>
 
-    <button type="button" class="btn btn-primary btn-sm"
-            disabled="@(_generating || string.IsNullOrWhiteSpace(_selectedChannelId))" @onclick="GenerateInviteAsync">
-      @if (_generating)
-      {
-        <span class="spinner-border spinner-border-sm me-1"></span>
-      }
-      Generate Invite
-    </button>
+      <button type="submit" class="btn btn-primary btn-sm"
+              disabled="@(_generating || string.IsNullOrWhiteSpace(_selectedChannelId))">
+        @if (_generating)
+        {
+          <span class="spinner-border spinner-border-sm me-1"></span>
+        }
+        Generate Invite
+      </button>
+    </form>
   </div>
 </div>
 
 @code {
+  [CascadingParameter]
+  protected LoadingBoundaryContext? Loading { get; set; }
+
   private List<GuildChannel> _channels = [];
   private List<DiscordInvite> _shares = [];
   private string? _selectedChannelId;
@@ -58,7 +68,10 @@
   protected override async Task OnInitializedAsync()
   {
     DiscordService.DbDataChanged += Hydrate;
-    await Hydrate();
+    using (Loading?.Start())
+    {
+      await Hydrate();
+    }
   }
 
   public void Dispose()
@@ -70,6 +83,8 @@
   {
     _channels = await Discord.GetChannelsAsync();
     _shares = await Discord.GetSharesAsync();
+
+    await InvokeAsync(StateHasChanged);
   }
 
   private async Task GenerateInviteAsync()

@@ -1,15 +1,16 @@
 @using Web.Components.Shared
 @using Web.Services
 @inject DiscordService Discord
-@inherits LoadingChild;
 
-<button class="btn btn-outline-primary btn-sm" @onclick="SyncAsync" disabled="@_syncing">
-  @if (_syncing)
-  {
-    <span class="spinner-border spinner-border-sm me-1"></span>
-  }
-  Sync
-</button>
+<form @onsubmit="SyncAsync" @onsubmit:preventDefault>
+  <button class="btn btn-outline-primary btn-sm" type="submit" disabled="@_syncing">
+    @if (_syncing)
+    {
+      <span class="spinner-border spinner-border-sm me-1"></span>
+    }
+    Sync
+  </button>
+</form>
 
 @if (_lastSynced is not null)
 {
@@ -17,13 +18,19 @@
 }
 
 @code {
+  [CascadingParameter]
+  protected LoadingBoundaryContext? Loading { get; set; }
+
   private bool _syncing = false;
   private DateTime? _lastSynced;
 
   protected override async Task OnInitializedAsync()
   {
     DiscordService.DbDataChanged += Hydrate;
-    await base.OnInitializedAsync();
+    using (Loading?.Start())
+    {
+      await Hydrate();
+    }
   }
 
   public void Dispose()
@@ -31,15 +38,19 @@
     DiscordService.DbDataChanged -= Hydrate;
   }
 
-  protected override async Task Hydrate()
+  private async Task Hydrate()
   {
     _lastSynced = await Discord.GetLastSyncedAtAsync();
+    await InvokeAsync(StateHasChanged);
   }
 
   private async Task SyncAsync()
   {
     _syncing = true;
-    await Discord.SyncAsync();
+    using (Loading?.Start())
+    {
+      await Discord.SyncAllAsync();
+    }
     _syncing = false;
   }
 }

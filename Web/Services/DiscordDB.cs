@@ -184,4 +184,39 @@ public class DiscordDB(CacheDb cache)
       rows
     );
   }
+
+  public async Task SaveRoleAssignmentsAsync(List<(string roleId, string memberId)> assignments)
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    using var tx = await conn.BeginTransactionAsync();
+    try
+    {
+      await conn.ExecuteAsync("DELETE FROM discord_role_assignments", transaction: tx);
+      var rows = assignments.Select(a => new { roleId = a.roleId, memberId = a.memberId }).ToList();
+      await conn.ExecuteAsync(
+        "INSERT INTO discord_role_assignments (role_id, member_id) VALUES (@roleId, @memberId)",
+        rows,
+        transaction: tx
+      );
+      await tx.CommitAsync();
+    }
+    catch
+    {
+      await tx.RollbackAsync();
+      throw;
+    }
+  }
+
+  public async Task<Dictionary<string, List<string>>> GetRoleAssignmentsAsync()
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    var rows = await conn.QueryAsync<(string roleId, string memberId)>(
+      "SELECT role_id, member_id FROM discord_role_assignments ORDER BY role_id, member_id"
+    );
+
+    return rows.GroupBy(r => r.roleId)
+      .ToDictionary(g => g.Key, g => g.Select(r => r.memberId).ToList());
+  }
 }

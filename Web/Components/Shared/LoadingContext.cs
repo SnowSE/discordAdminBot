@@ -10,7 +10,7 @@ public class LoadingBoundaryContext
     _loadingStates[id] = true;
     OnChange?.Invoke();
 
-    return new LoadingScope(this, id,   onComplete);
+    return new LoadingScope(this, id, onComplete);
   }
 
   private void Complete(Guid id)

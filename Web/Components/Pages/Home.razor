@@ -7,7 +7,6 @@
 
 <PageTitle>Discord Overview</PageTitle>
 <LoadingAndError>
-  <LoadingDemo />
   <div class="d-flex align-items-center gap-3 mb-3">
     <h1 class="mb-0">Discord Overview</h1>
     <SyncStatus />
@@ -16,10 +15,15 @@
   <Overview Members="@_members" Channels="@_channels" Roles="@_roles" />
   <hr />
   <InviteToServer />
-  <UserRoles @key="_roles" />
+  <LoadingAndError>
+    <UserRoles @key="_roles" />
+  </LoadingAndError>
 </LoadingAndError>
 
 @code {
+  [CascadingParameter]
+  protected LoadingBoundaryContext? Loading { get; set; }
+
   private List<Web.Models.GuildMember> _members = [];
   private List<Web.Models.GuildChannel> _channels = [];
   private List<Web.Models.GuildRole> _roles = [];
@@ -27,7 +31,10 @@
   protected override async Task OnInitializedAsync()
   {
     DiscordService.DbDataChanged += Hydrate;
-    await Hydrate();
+    using (Loading?.Start())
+    {
+      await Hydrate();
+    }
   }
 
   public void Dispose()
@@ -40,5 +47,6 @@
     _members = await Discord.GetMembersAsync();
     _channels = await Discord.GetChannelsAsync();
     _roles = await Discord.GetRolesAsync();
+    await InvokeAsync(StateHasChanged);
   }
 }
