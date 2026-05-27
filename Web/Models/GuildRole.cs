@@ -1,7 +1,7 @@
 namespace Web.Models;
 
 public record GuildRole(
-  string Id,
+  DiscordRoleId Id,
   string Name,
   int Color,
   int Position,

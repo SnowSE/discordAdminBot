@@ -35,76 +35,63 @@ else
 }
 
 <div class="row g-4">
-  @foreach (var assignment in roleAssignments)
+  @foreach (var role in allRoles.Where(IsAssignableRole).OrderBy(r => r.Position))
   {
     <div class="col-md-6 col-lg-4">
       <div class="card h-100">
         <div class="card-header d-flex align-items-center gap-2">
-          @if (assignment.Role.Color != 0)
+          @if (role.Color != 0)
           {
             <span
-            style="width:14px;height:14px;background:#@(assignment.Role.Color.ToString("x6"));border-radius:50%;display:inline-block;flex-shrink:0"></span>
+            style="width:14px;height:14px;background:#@(role.Color.ToString("x6"));border-radius:50%;display:inline-block;flex-shrink:0"></span>
           }
-          <strong>@assignment.Role.Name</strong>
-          <span class="badge bg-secondary ms-auto">@assignment.Members.Count</span>
-          <form @onsubmit="() => DeleteRoleAsync(assignment.Role.Id)" @onsubmit:preventDefault style="display:contents">
-            <button type="submit" class="btn btn-outline-danger btn-sm ms-auto">
-              Delete
-            </button>
+          <strong class="text-truncate">@role.Name</strong>
+        </div>
+
+        <input type="text" class="card-header form-control border-top border-bottom bg-light"
+               placeholder="Search members..."
+               @oninput="(ChangeEventArgs e) => HandleSearch(role.Id, e.Value?.ToString() ?? string.Empty)" />
+
+        <div class="list-group list-group-flush overflow-auto py-1" style="max-height:400px">
+          @{
+            var search = _searchTerms.GetValueOrDefault(role.Id, "");
+            var filteredMembers = allMembers
+              .Where(m => string.IsNullOrEmpty(search) || m.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase))
+              .OrderBy(m => m.DisplayName)
+              .ToList();
+          }
+          @foreach (var member in filteredMembers)
+          {
+            <LoadingAndError>
+              <UserRoleItem Member="member" Role="role" />
+            </LoadingAndError>
+          }
+
+          @if (!filteredMembers.Any())
+          {
+            <div class="list-group-item text-muted">No members found</div>
+          }
+        </div>
+
+        <div class="card-footer">
+          <form @onsubmit="() => DeleteRoleAsync(role.Id)" @onsubmit:preventDefault>
+            <button type="submit" class="btn btn-outline-danger btn-sm w-100">Delete Role</button>
           </form>
         </div>
-        @if (assignment.Members.Count > 0)
-        {
-          <ul class="list-group list-group-flush">
-            @foreach (var member in assignment.Members.OrderBy(m => m.DisplayName))
-            {
-              <li class="list-group-item d-flex justify-content-between align-items-center">
-                <span>@member.DisplayName</span>
-                <form @onsubmit="() => RemoveRoleFromMemberAsync(member.User!.Id, assignment.Role.Id)"
-                      @onsubmit:preventDefault style="display:contents">
-                  <button type="submit" class="btn-close btn-sm" aria-label="Remove"></button>
-                </form>
-              </li>
-            }
-          </ul>
-        }
-        else
-        {
-          <div class="card-body text-muted">No members assigned</div>
-        }
-
-        @{
-          var unassignedMembers = allMembers.Where(m => !assignment.Members.Any(am => am.User?.Id == m.User?.Id)).ToList();
-        }
-        @if (unassignedMembers.Count > 0)
-        {
-          var roleId = assignment.Role.Id;
-          var pendingId = _pendingMemberIds.GetValueOrDefault(roleId, "");
-          <div class="card-footer">
-            <form @onsubmit="() => AddRoleToMemberAsync(pendingId, roleId)" @onsubmit:preventDefault>
-              <div class="input-group">
-                <select class="form-select form-select-sm" value="@pendingId"
-                        @onchange="(ChangeEventArgs e) => _pendingMemberIds[roleId] = (string?)(e.Value ?? String.Empty) ?? String.Empty">
-                  <option value="">-- add member --</option>
-                  @foreach (var m in unassignedMembers.OrderBy(m => m.DisplayName))
-                  {
-                    <option value="@m.User!.Id">@m.DisplayName</option>
-                  }
-                </select>
-                <button class="btn btn-sm btn-outline-primary" type="submit" disabled="@string.IsNullOrEmpty(pendingId)">
-                  Add
-                </button>
-              </div>
-            </form>
-          </div>
-        }
       </div>
     </div>
   }
 </div>
 
 @code {
-  private List<RoleAssignment> roleAssignments = [];
+  private List<GuildRole> allRoles = [];
+  private List<GuildMember> allMembers = [];
+  private Dictionary<string, string> _searchTerms = new();
+  private string? _guildName;
+  private DiscordUser? _botUser;
+
+  private bool IsAssignableRole(GuildRole role) =>
+    role.Name != "@everyone" && role.Name != _guildName && role.Name != _botUser?.Username && role.Name != _botUser?.GlobalName;
 
   private bool _creatingRole = false;
   private bool _creating = false;
@@ -124,16 +111,21 @@ else
     DiscordService.DbDataChanged -= Hydrate;
   }
 
-  protected async Task Hydrate()
+  private async Task Hydrate()
   {
     using var _ = Loading?.Start();
-    roleAssignments = await Discord.GetRoleAssignmentsAsync();
+    _guildName = (await Discord.GetGuildAsync())?.Name;
+    _botUser = await Discord.GetBotUserAsync();
+    allRoles = await Discord.GetRolesAsync();
     allMembers = await Discord.GetMembersAsync();
     await InvokeAsync(StateHasChanged);
   }
 
-  private List<GuildMember> allMembers = [];
-  private Dictionary<string, string> _pendingMemberIds = new();
+  private void HandleSearch(string roleId, string? value)
+  {
+    _searchTerms[roleId] = value ?? "";
+    StateHasChanged();
+  }
 
   private async Task CreateRoleAsync()
   {
@@ -146,21 +138,6 @@ else
     _creatingRole = false;
     _roleName = "";
     _creating = false;
-  }
-
-  private async Task AddRoleToMemberAsync(string memberId, string roleId)
-  {
-    using var _ = Loading?.Start();
-    _pendingMemberIds[roleId] = "";
-    await Discord.AddRoleToMemberAsync(memberId, roleId);
-    await Discord.SyncMembersAsync();
-  }
-
-  private async Task RemoveRoleFromMemberAsync(string memberId, string roleId)
-  {
-    using var _ = Loading?.Start();
-    await Discord.RemoveRoleFromMemberAsync(memberId, roleId);
-    await Discord.SyncMembersAsync();
   }
 
   private async Task DeleteRoleAsync(string roleId)

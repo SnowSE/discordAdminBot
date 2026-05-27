@@ -1,6 +1,12 @@
 namespace Web.Models;
 
-public record GuildChannel(string Id, string? Name, int Type, int? Position, string? ParentId)
+public record GuildChannel(
+  DiscordChannelId Id,
+  ChannelName? Name,
+  int Type,
+  int? Position,
+  DiscordChannelId? ParentId
+)
 {
   public string TypeName =>
     Type switch

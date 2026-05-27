@@ -42,6 +42,26 @@ public class DiscordDB(CacheDb cache)
     return rows.Select(json => JsonSerializer.Deserialize<GuildRole>(json, JsonOptions)!).ToList();
   }
 
+  public async Task<DiscordGuild?> GetGuildAsync()
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    var json = await conn.QuerySingleOrDefaultAsync<string>(
+      "SELECT data FROM discord_guilds LIMIT 1"
+    );
+    return json is null ? null : JsonSerializer.Deserialize<DiscordGuild>(json, JsonOptions);
+  }
+
+  public async Task<DiscordUser?> GetBotUserAsync()
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    var json = await conn.QuerySingleOrDefaultAsync<string>(
+      "SELECT data FROM discord_bot_users LIMIT 1"
+    );
+    return json is null ? null : JsonSerializer.Deserialize<DiscordUser>(json, JsonOptions);
+  }
+
   public async Task SaveMembersAsync(List<GuildMember> members)
   {
     using var conn = _cache.OpenConnection();
@@ -135,6 +155,62 @@ public class DiscordDB(CacheDb cache)
     }
   }
 
+  public async Task SaveGuildAsync(DiscordGuild guild)
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    using var tx = await conn.BeginTransactionAsync();
+    try
+    {
+      var now = DateTime.UtcNow.ToString("O");
+      await conn.ExecuteAsync("DELETE FROM discord_guilds", transaction: tx);
+      await conn.ExecuteAsync(
+        "INSERT INTO discord_guilds (id, data, updated_at) VALUES (@id, @data, @updatedAt)",
+        new
+        {
+          id = guild.Id,
+          data = JsonSerializer.Serialize(guild, JsonOptions),
+          updatedAt = now,
+        },
+        transaction: tx
+      );
+      await tx.CommitAsync();
+    }
+    catch
+    {
+      await tx.RollbackAsync();
+      throw;
+    }
+  }
+
+  public async Task SaveBotUserAsync(DiscordUser botUser)
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    using var tx = await conn.BeginTransactionAsync();
+    try
+    {
+      var now = DateTime.UtcNow.ToString("O");
+      await conn.ExecuteAsync("DELETE FROM discord_bot_users", transaction: tx);
+      await conn.ExecuteAsync(
+        "INSERT INTO discord_bot_users (id, data, updated_at) VALUES (@id, @data, @updatedAt)",
+        new
+        {
+          id = botUser.Id,
+          data = JsonSerializer.Serialize(botUser, JsonOptions),
+          updatedAt = now,
+        },
+        transaction: tx
+      );
+      await tx.CommitAsync();
+    }
+    catch
+    {
+      await tx.RollbackAsync();
+      throw;
+    }
+  }
+
   public async Task<DateTime?> GetLastSyncedAtAsync()
   {
     using var conn = _cache.OpenConnection();
@@ -146,8 +222,21 @@ public class DiscordDB(CacheDb cache)
       "SELECT MAX(updated_at) FROM discord_channels"
     );
     var rolesTsTask = conn.ExecuteScalarAsync<string?>("SELECT MAX(updated_at) FROM discord_roles");
-    await Task.WhenAll(membersTsTask, channelsTsTask, rolesTsTask);
-    var timestamps = new[] { membersTsTask.Result, channelsTsTask.Result, rolesTsTask.Result }
+    var guildTsTask = conn.ExecuteScalarAsync<string?>(
+      "SELECT MAX(updated_at) FROM discord_guilds"
+    );
+    var botUserTsTask = conn.ExecuteScalarAsync<string?>(
+      "SELECT MAX(updated_at) FROM discord_bot_users"
+    );
+    await Task.WhenAll(membersTsTask, channelsTsTask, rolesTsTask, guildTsTask, botUserTsTask);
+    var timestamps = new[]
+    {
+      membersTsTask.Result,
+      channelsTsTask.Result,
+      rolesTsTask.Result,
+      guildTsTask.Result,
+      botUserTsTask.Result,
+    }
       .Where(s => s is not null)
       .Select(s => DateTime.Parse(s!, null, System.Globalization.DateTimeStyles.RoundtripKind))
       .Cast<DateTime?>()
@@ -183,40 +272,5 @@ public class DiscordDB(CacheDb cache)
       "INSERT INTO discord_shares (id, data, updated_at) VALUES (@id, @data, @updatedAt)",
       rows
     );
-  }
-
-  public async Task SaveRoleAssignmentsAsync(List<(string roleId, string memberId)> assignments)
-  {
-    using var conn = _cache.OpenConnection();
-    await conn.OpenAsync();
-    using var tx = await conn.BeginTransactionAsync();
-    try
-    {
-      await conn.ExecuteAsync("DELETE FROM discord_role_assignments", transaction: tx);
-      var rows = assignments.Select(a => new { roleId = a.roleId, memberId = a.memberId }).ToList();
-      await conn.ExecuteAsync(
-        "INSERT INTO discord_role_assignments (role_id, member_id) VALUES (@roleId, @memberId)",
-        rows,
-        transaction: tx
-      );
-      await tx.CommitAsync();
-    }
-    catch
-    {
-      await tx.RollbackAsync();
-      throw;
-    }
-  }
-
-  public async Task<Dictionary<string, List<string>>> GetRoleAssignmentsAsync()
-  {
-    using var conn = _cache.OpenConnection();
-    await conn.OpenAsync();
-    var rows = await conn.QueryAsync<(string roleId, string memberId)>(
-      "SELECT role_id, member_id FROM discord_role_assignments ORDER BY role_id, member_id"
-    );
-
-    return rows.GroupBy(r => r.roleId)
-      .ToDictionary(g => g.Key, g => g.Select(r => r.memberId).ToList());
   }
 }

@@ -16,6 +16,18 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     NumberHandling = JsonNumberHandling.AllowReadingFromString,
   };
 
+  public async Task<DiscordGuild> FetchGuildAsync(CancellationToken ct = default) =>
+    await _http.GetFromJsonAsync<DiscordGuild>($"guilds/{_guildId}", JsonOptions, ct)
+    ?? throw new InvalidOperationException(
+      $"Discord guild response was empty while loading guild '{_guildId}'."
+    );
+
+  public async Task<DiscordUser> FetchCurrentUserAsync(CancellationToken ct = default) =>
+    await _http.GetFromJsonAsync<DiscordUser>("users/@me", JsonOptions, ct)
+    ?? throw new InvalidOperationException(
+      "Discord current user response was empty while loading bot identity."
+    );
+
   public async Task<List<GuildMember>> FetchMembersAsync(CancellationToken ct = default) =>
     await FetchMembersFromDiscordAsync(ct);
 

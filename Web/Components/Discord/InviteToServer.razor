@@ -14,7 +14,7 @@
         <label class="form-label">Active Invite Links</label>
         @foreach (var share in _shares)
         {
-          var channelName = share.ChannelName ?? "Unknown";
+          var channelName = share.Channel?.Name ?? "Unknown";
           <form @onsubmit="() => CopyToClipboardAsync(share.Url)" @onsubmit:preventDefault>
             <div class="input-group mb-2">
               <span class="input-group-text">#@channelName</span>
