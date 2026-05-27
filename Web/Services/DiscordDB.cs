@@ -21,8 +21,7 @@ public class DiscordDB(CacheDb cache)
     using var conn = _cache.OpenConnection();
     await conn.OpenAsync();
     var rows = await conn.QueryAsync<string>("SELECT data FROM discord_members");
-    return rows.Select(json => JsonSerializer.Deserialize<GuildMember>(json, JsonOptions)!)
-      .ToList();
+    return [.. rows.Select(json => JsonSerializer.Deserialize<GuildMember>(json, JsonOptions)!)];
   }
 
   public async Task<List<GuildChannel>> GetChannelsAsync()
@@ -30,8 +29,7 @@ public class DiscordDB(CacheDb cache)
     using var conn = _cache.OpenConnection();
     await conn.OpenAsync();
     var rows = await conn.QueryAsync<string>("SELECT data FROM discord_channels");
-    return rows.Select(json => JsonSerializer.Deserialize<GuildChannel>(json, JsonOptions)!)
-      .ToList();
+    return [.. rows.Select(json => JsonSerializer.Deserialize<GuildChannel>(json, JsonOptions)!)];
   }
 
   public async Task<List<GuildRole>> GetRolesAsync()
@@ -39,7 +37,7 @@ public class DiscordDB(CacheDb cache)
     using var conn = _cache.OpenConnection();
     await conn.OpenAsync();
     var rows = await conn.QueryAsync<string>("SELECT data FROM discord_roles");
-    return rows.Select(json => JsonSerializer.Deserialize<GuildRole>(json, JsonOptions)!).ToList();
+    return [.. rows.Select(json => JsonSerializer.Deserialize<GuildRole>(json, JsonOptions)!)];
   }
 
   public async Task<DiscordGuild?> GetGuildAsync()

@@ -1,5 +1,8 @@
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Dapper;
 
 namespace Web.Models;
 
@@ -14,7 +17,34 @@ public abstract record TypedString
 
   public static implicit operator string(TypedString typedString) => typedString._value;
 
-  public override string ToString() => _value;
+  public sealed override string ToString() => _value;
+
+  [ModuleInitializer]
+  internal static void RegisterDapperTypeHandlers()
+  {
+    var assembly = typeof(TypedString).Assembly;
+    var concreteTypes = assembly
+      .GetTypes()
+      .Where(t => typeof(TypedString).IsAssignableFrom(t) && !t.IsAbstract && t.IsSealed)
+      .ToList();
+
+    // AddTypeHandler has multiple overloads – find the generic one with a single parameter
+    var addHandlerMethod = typeof(SqlMapper)
+      .GetMethods(BindingFlags.Public | BindingFlags.Static)
+      .First(m =>
+        m.Name == nameof(SqlMapper.AddTypeHandler)
+        && m.IsGenericMethodDefinition
+        && m.GetParameters().Length == 1
+      );
+
+    foreach (var type in concreteTypes)
+    {
+      var genericMethod = addHandlerMethod.MakeGenericMethod(type);
+      var handlerType = typeof(TypedStringTypeHandler<>).MakeGenericType(type);
+      var handler = Activator.CreateInstance(handlerType);
+      genericMethod.Invoke(null, [handler!]);
+    }
+  }
 }
 
 public sealed class TypedStringJsonConverter<TTypedString> : JsonConverter<TTypedString>
