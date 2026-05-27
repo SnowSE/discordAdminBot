@@ -37,7 +37,7 @@
         <label for="invite-channel" class="form-label">Channel</label>
         <select class="form-select" @bind="_selectedChannelId">
           <option value="">-- select a channel --</option>
-          @foreach (var c in _channels.Where(c => c.Type != 4).OrderBy(c => c.Position))
+          @foreach (var c in _channels.Where(c => c.Type != 4).OrderBy(c => (int?)c.Position ?? int.MaxValue))
           {
             <option value="@c.Id">@c.Name (@c.TypeName)</option>
           }

@@ -40,44 +40,48 @@ else
     <div class="col-md-6 col-lg-4">
       <div class="card h-100">
         <div class="card-header d-flex align-items-center gap-2">
-          @if (role.Color != 0)
+          @if (role.Color.HasColor())
           {
             <span
-            style="width:14px;height:14px;background:#@(role.Color.ToString("x6"));border-radius:50%;display:inline-block;flex-shrink:0"></span>
+            style="width:14px;height:14px;background:#@(role.Color.ToHexString());border-radius:50%;display:inline-block;flex-shrink:0"></span>
           }
-          <strong class="text-truncate">@role.Name</strong>
+          <strong class="text-truncate">@(role.Name)</strong>
         </div>
 
-        <input type="text" class="card-header form-control border-top border-bottom bg-light"
-               placeholder="Search members..."
-               @oninput="(ChangeEventArgs e) => HandleSearch(role.Id, e.Value?.ToString() ?? string.Empty)" />
+        
+        @if (role.Id != null)
+        {
+          <input type="text" class="card-header form-control border-top border-bottom bg-light"
+                 placeholder="Search members..."
+                 @oninput="(ChangeEventArgs e) => HandleSearch(role.Id, e.Value?.ToString() ?? string.Empty)" />
 
-        <div class="list-group list-group-flush overflow-auto py-1" style="max-height:400px">
-          @{
-            var search = _searchTerms.GetValueOrDefault(role.Id, "");
-            var filteredMembers = allMembers
-              .Where(m => string.IsNullOrEmpty(search) || m.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase))
-              .OrderBy(m => m.DisplayName)
-              .ToList();
-          }
-          @foreach (var member in filteredMembers)
-          {
-            <LoadingAndError>
-              <UserRoleItem Member="member" Role="role" />
-            </LoadingAndError>
-          }
+          <div class="list-group list-group-flush overflow-auto py-1" style="max-height:400px">
+            @{
+              var search = _searchTerms.GetValueOrDefault(role.Id, "");
+              var filteredMembers = allMembers
+                .Where(m => string.IsNullOrEmpty(search) || m.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(m => m.DisplayName)
+                .ToList();
+            }
+            @foreach (var member in filteredMembers)
+            {
+              <LoadingAndError>
+                <UserRoleItem Member="member" Role="role" />
+              </LoadingAndError>
+            }
 
-          @if (!filteredMembers.Any())
-          {
-            <div class="list-group-item text-muted">No members found</div>
-          }
-        </div>
+            @if (!filteredMembers.Any())
+            {
+              <div class="list-group-item text-muted">No members found</div>
 
-        <div class="card-footer">
-          <form @onsubmit="() => DeleteRoleAsync(role.Id)" @onsubmit:preventDefault>
-            <button type="submit" class="btn btn-outline-danger btn-sm w-100">Delete Role</button>
-          </form>
-        </div>
+            }
+          </div>
+          <div class="card-footer">
+            <form @onsubmit="() => DeleteRoleAsync(role.Id)" @onsubmit:preventDefault>
+              <button type="submit" class="btn btn-outline-danger btn-sm w-100">Delete Role</button>
+            </form>
+          </div>
+        }
       </div>
     </div>
   }
@@ -91,7 +95,9 @@ else
   private DiscordUser? _botUser;
 
   private bool IsAssignableRole(GuildRole role) =>
-    role.Name != "@everyone" && role.Name != _guildName && role.Name != _botUser?.Username && role.Name != _botUser?.GlobalName;
+    role.Name != "@everyone" &&
+    (_guildName == null || role.Name != _guildName) &&
+    (_botUser == null || (role.Name != _botUser.Username && role.Name != _botUser.GlobalName));
 
   private bool _creatingRole = false;
   private bool _creating = false;

@@ -9,7 +9,7 @@
       {
         <li class="list-group-item d-flex justify-content-between align-items-center">
           <span>@m.DisplayName</span>
-          <small class="text-muted">@m.User?.Username</small>
+          <small class="text-muted">@(m.User?.Username ?? "")</small>
         </li>
       }
     </ul>
@@ -18,7 +18,7 @@
   <div class="col-md-4">
     <h4>Channels <span class="badge bg-secondary">@Channels.Count(c => c.Type != 4)</span></h4>
     <ul class="list-group list-group-flush border rounded" style="max-height:480px;overflow-y:auto">
-      @foreach (var c in Channels.Where(c => c.Type != 4).OrderBy(c => c.Position))
+      @foreach (var c in Channels.Where(c => c.Type != 4).OrderBy(c => (int?)c.Position ?? int.MaxValue))
       {
         <li class="list-group-item d-flex justify-content-between align-items-center">
           <span>@c.Name</span>
@@ -31,14 +31,15 @@
   <div class="col-md-4">
     <h4>Roles <span class="badge bg-secondary">@Roles.Count(r => r.Name != "@everyone")</span></h4>
     <ul class="list-group list-group-flush border rounded" style="max-height:480px;overflow-y:auto">
-      @foreach (var r in Roles.Where(r => r.Name != "@everyone").OrderByDescending(r => r.Position))
+      @foreach (var r in Roles.Where(r => r.Name != "@everyone").OrderByDescending(r => (int?)r.Position ??
+      int.MinValue))
       {
         <li class="list-group-item d-flex justify-content-between align-items-center">
-          <span>@r.Name</span>
-          @if (r.Color != 0)
+          <span>@(r.Name)</span>
+          @if (r.Color.HasColor())
           {
             <span
-            style="width:14px;height:14px;background:#@(r.Color.ToString("x6"));border-radius:50%;display:inline-block;flex-shrink:0"></span>
+            style="width:14px;height:14px;background:#@(r.Color.ToHexString());border-radius:50%;display:inline-block;flex-shrink:0"></span>
           }
         </li>
       }

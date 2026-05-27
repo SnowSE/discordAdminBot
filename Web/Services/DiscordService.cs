@@ -101,14 +101,16 @@ public class DiscordService(DiscordAPI api, DiscordDB db)
     var roles = rolesTask.Result;
     var members = membersTask.Result;
 
-    return roles
-      .Where(role => role.Name != "@everyone")
-      .OrderByDescending(role => role.Position)
-      .Select(role => new RoleAssignment(
-        role,
-        members.Where(member => member.Roles.Contains(role.Id)).ToList()
-      ))
-      .ToList();
+    return
+    [
+      .. roles
+        .Where(role => role.Name != "@everyone")
+        .OrderByDescending(role => role.Position)
+        .Select(role => new RoleAssignment(
+          role,
+          members.Where(member => member.Roles.Contains(role.Id)).ToList()
+        )),
+    ];
   }
 
   public async Task<GuildRole> CreateRoleAsync(

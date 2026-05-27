@@ -1,0 +1,8 @@
+root = true
+
+[*.cs]
+# Disable naming rule that requires lowercase parameter names to start with uppercase.
+dotnet_diagnostic.IDE1006.severity = silent
+
+# Allow namespaces to differ from folder structure (e.g., PrimitiveObsession folder uses parent namespace).
+dotnet_diagnostic.IDE0130.severity = silent

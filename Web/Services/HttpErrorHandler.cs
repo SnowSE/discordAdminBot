@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Web.Services;
 
-public class HttpErrorHandler(ILogger<HttpErrorHandler> logger) : DelegatingHandler
+public class HttpErrorHandler() : DelegatingHandler
 {
   private static readonly string[] SensitiveKeys =
   [

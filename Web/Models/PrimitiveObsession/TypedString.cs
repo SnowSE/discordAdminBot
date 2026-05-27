@@ -1,3 +1,4 @@
+using System.Data;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -6,18 +7,18 @@ using Dapper;
 
 namespace Web.Models;
 
-public abstract record TypedString
+public abstract record TypedString : IComparable<TypedString>
 {
-  private readonly string _value;
+  private readonly string value;
 
   protected TypedString(string value)
   {
-    _value = value;
+    this.value = value;
   }
 
-  public static implicit operator string(TypedString typedString) => typedString._value;
+public static implicit operator string(TypedString typedString) => typedString.value;
 
-  public sealed override string ToString() => _value;
+  public sealed override string ToString() => value;
 
   [ModuleInitializer]
   internal static void RegisterDapperTypeHandlers()
@@ -45,6 +46,10 @@ public abstract record TypedString
       genericMethod.Invoke(null, [handler!]);
     }
   }
+
+  public int CompareTo(TypedString? other) => string.CompareOrdinal(value, other?.value ?? "");
+
+  public override int GetHashCode() => HashCode.Combine(GetType(), value);
 }
 
 public sealed class TypedStringJsonConverter<TTypedString> : JsonConverter<TTypedString>
@@ -88,6 +93,38 @@ public sealed class TypedStringJsonConverter<TTypedString> : JsonConverter<TType
     JsonSerializerOptions options
   )
   {
-    writer.WriteStringValue((string)value);
+    writer.WriteStringValue(value);
+  }
+}
+
+/// <summary>
+/// Dapper type handler that converts typed-string values to SQL parameters via ToString().
+/// Each concrete typed-string registers an instance in its own static constructor.
+/// </summary>
+public class TypedStringTypeHandler<T> : SqlMapper.TypeHandler<T>
+  where T : TypedString
+{
+  public override T? Parse(object value)
+  {
+    if (value is not string stringValue)
+      throw new InvalidOperationException(
+        $"TypedStringTypeHandler<{typeof(T).Name}>: expected SQL type to be a string."
+      );
+
+    var constructor =
+      typeof(T).GetConstructor([typeof(string)])
+      ?? throw new InvalidOperationException(
+        $"TypedStringTypeHandler<{typeof(T).Name}>: public string constructor not found on '{typeof(T).FullName}'."
+      );
+    return constructor.Invoke([stringValue]) as T;
+  }
+
+  public override void SetValue(IDbDataParameter parameter, T? value)
+  {
+    if (value is null)
+      throw new InvalidOperationException(
+        $"TypedStringTypeHandler<{typeof(T).Name}>: cannot set null value for non-nullable type '{typeof(T).FullName}' in database parameter '{parameter.ParameterName}'."
+      );
+    parameter.Value = value;
   }
 }

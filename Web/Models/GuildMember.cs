@@ -2,10 +2,20 @@ namespace Web.Models;
 
 public record GuildMember(
   DiscordUser? User,
-  string? Nick,
+  GuildNick? Nick,
   List<DiscordRoleId> Roles,
-  string? JoinedAt
+  GuildJoinedAt? JoinedAt
 )
 {
-  public string DisplayName => Nick ?? User?.GlobalName ?? User?.Username ?? "(unknown)";
+  public string DisplayName =>
+    ValueAsNonEmptyString(Nick)
+    ?? ValueAsNonEmptyString(User?.GlobalName)
+    ?? ValueAsNonEmptyString(User?.Username)
+    ?? "(unknown)";
+
+  private static string? ValueAsNonEmptyString(TypedString? value)
+  {
+    var s = (string?)value;
+    return string.IsNullOrWhiteSpace(s) ? null : s;
+  }
 }

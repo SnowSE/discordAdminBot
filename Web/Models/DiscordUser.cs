@@ -1,3 +1,9 @@
 namespace Web.Models;
 
-public record DiscordUser(string Id, string Username, string? GlobalName, string? Avatar, bool Bot);
+public record DiscordUser(
+  DiscordUserId Id,
+  DiscordUsername Username,
+  DiscordGlobalName? GlobalName,
+  DiscordAvatar? Avatar,
+  bool Bot
+);
