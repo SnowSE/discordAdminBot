@@ -16,3 +16,10 @@ make sure all exception messages are unique to aid in future codebase searches t
 treat build warnings as build errors, if you are unsure about the correct way to solve build warnings ask the user for guidance
 
 when doing premature returns for invalid data, always make sure to log a unique message explaining why the premature return is happening, somethimes throwing an error or displaying an error message to the user is more appropriate.
+
+
+when creating user interfaces, always consider heirarchy of concerns and that less information is better presentation
+- dont forget to label data, but make the labels not the focus of the page
+- when using icons still label with a word, even if the label id de-epmhasized
+- never use the label: value pattern, users don't understand it quickly, be more creative with intuitive data labeling
+- there are some data types that don't require labels, like money, dates, and emails

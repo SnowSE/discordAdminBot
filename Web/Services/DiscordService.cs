@@ -83,11 +83,14 @@ public class DiscordService(DiscordAPI api, DiscordDB db)
 
   public async Task GenerateShareAsync(string channelId, CancellationToken ct = default)
   {
-    var shares = await db.GetSharesAsync();
-    if (shares.Count > 0)
-      return;
-
     await api.CreateInviteAsync(channelId, ct);
+    await SyncInvitesAsync(false, ct);
+    DbDataChanged?.Invoke();
+  }
+
+  public async Task DeleteShareAsync(string inviteCode, CancellationToken ct = default)
+  {
+    await api.DeleteInviteAsync(inviteCode, ct);
     await SyncInvitesAsync(false, ct);
     DbDataChanged?.Invoke();
   }

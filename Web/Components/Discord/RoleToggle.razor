@@ -1,0 +1,43 @@
+@using Web.Models
+@using Web.Services
+@using Web.Components.Shared
+
+<form @onsubmit="ToggleAsync" @onsubmit:preventDefault>
+  <button type="submit" class="btn btn-sm @(HasRole ? "btn-outline-danger" : "btn-outline-primary")">
+    @(HasRole ? "Remove" : "Add")
+  </button>
+</form>
+
+@code {
+  [Parameter]
+  public GuildMember Member { get; set; } = default!;
+
+  [Parameter]
+  public GuildRole Role { get; set; } = default!;
+
+  [CascadingParameter]
+  protected LoadingBoundaryContext? Loading { get; set; }
+
+  [Inject]
+  protected DiscordService Discord { get; set; } = default!;
+
+  private bool HasRole => Member.Roles.Contains(Role.Id);
+
+  private async Task ToggleAsync()
+  {
+    var userId = Member.User?.Id;
+    if (userId == null)
+      throw new InvalidOperationException($"Cannot toggle role '{Role.Name}' — member '{Member.DisplayName}' has no associated user ID.");
+
+    using var _ = Loading?.Start();
+
+    if (HasRole)
+    {
+      await Discord.RemoveRoleFromMemberAsync(userId, Role.Id);
+    }
+    else
+    {
+      await Discord.AddRoleToMemberAsync(userId, Role.Id);
+    }
+  }
+}

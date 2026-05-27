@@ -73,6 +73,12 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     return (await response.Content.ReadFromJsonAsync<DiscordInvite>(JsonOptions, ct))!;
   }
 
+  public async Task DeleteInviteAsync(string inviteCode, CancellationToken ct = default)
+  {
+    var response = await _http.DeleteAsync($"invites/{inviteCode}", ct);
+    response.EnsureSuccessStatusCode();
+  }
+
   public async Task<GuildRole> CreateRoleAsync(
     string roleName,
     int color = 0,

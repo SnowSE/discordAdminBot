@@ -13,37 +13,6 @@
   </div>
   <InviteToServer />
   <LoadingAndError>
-    <UserRoles @key="_roles" />
+    <UserRoles />
   </LoadingAndError>
 </LoadingAndError>
-
-@code {
-  [CascadingParameter]
-  protected LoadingBoundaryContext? Loading { get; set; }
-
-  private List<Web.Models.GuildMember> _members = [];
-  private List<Web.Models.GuildChannel> _channels = [];
-  private List<Web.Models.GuildRole> _roles = [];
-
-  protected override async Task OnInitializedAsync()
-  {
-    DiscordService.DbDataChanged += Hydrate;
-    using (Loading?.Start())
-    {
-      await Hydrate();
-    }
-  }
-
-  public void Dispose()
-  {
-    DiscordService.DbDataChanged -= Hydrate;
-  }
-
-  private async Task Hydrate()
-  {
-    _members = await Discord.GetMembersAsync();
-    _channels = await Discord.GetChannelsAsync();
-    _roles = await Discord.GetRolesAsync();
-    await InvokeAsync(StateHasChanged);
-  }
-}

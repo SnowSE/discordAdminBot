@@ -5,18 +5,15 @@
 
 @if (_creatingRole)
 {
-  <div class="card mb-4" style="max-width:400px">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <strong>New Role</strong>
+  <div class="card mb-4" style="max-width:320px">
+    <div class="card-header d-flex justify-content-between align-items-center py-2">
+      <strong class="mb-0">New Role</strong>
       <button type="button" class="btn-close btn-sm" aria-label="Close" @onclick="() => _creatingRole = false"></button>
     </div>
     <form @onsubmit="CreateRoleAsync" @onsubmit:preventDefault>
-      <div class="card-body">
-        <div class="mb-3">
-          <label class="form-label">Name</label>
-          <input @bind="_roleName" class="form-control" placeholder="Role name" />
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm" disabled="@_creating">
+      <div class="card-body py-2">
+        <input @bind="_roleName" class="form-control form-control-sm mb-2" placeholder="Role name" />
+        <button type="submit" class="btn btn-primary btn-sm w-100" disabled="@_creating">
           @if (_creating)
           {
             <span class="spinner-border spinner-border-sm me-1"></span>
@@ -29,79 +26,127 @@
 }
 else
 {
-  <button type="button" class="btn btn-outline-primary btn-sm mb-3" @onclick="() => _creatingRole = true">
-    + New Role
-  </button>
-}
+  <button type="button" class="btn btn-outline-primary btn-sm mb-3" @onclick="() => _creatingRole = true">+ New
+    Role</button>
+  }
 
-<div class="row g-4">
-  @foreach (var role in allRoles.Where(IsAssignableRole).OrderBy(r => r.Position))
-  {
-    <div class="col-md-6 col-lg-4">
+  <div class="row g-4" style="min-height:500px">
+    <!-- Left: Member list -->
+    <div class="col-md-4">
       <div class="card h-100">
-        <div class="card-header d-flex align-items-center gap-2">
-          @if (role.Color.HasColor())
-          {
-            <span
-            style="width:14px;height:14px;background:#@(role.Color.ToHexString());border-radius:50%;display:inline-block;flex-shrink:0"></span>
-          }
-          <strong class="text-truncate">@(role.Name)</strong>
+        <div class="card-header py-2">
+          <input type="text" class="form-control form-control-sm" placeholder="Search members..." @bind="_memberSearch"
+                 @oninput="StateHasChanged" />
         </div>
+        <ul class="list-group list-group-flush overflow-auto" style="max-height:540px">
+          @foreach (var member in allMembers.Where(m => string.IsNullOrEmpty(_memberSearch) ||
+        m.DisplayName.Contains(_memberSearch, StringComparison.OrdinalIgnoreCase)).OrderBy(m => m.DisplayName))
+          {
+            <li
+              class="list-group-item list-group-item-action px-3 py-2 d-flex justify-content-between align-items-center cursor-pointer"
+              @onclick="() => SelectMember(member)" style="@GetMemberStyle(member)">
+              <span class="text-truncate">@member.DisplayName</span>
+              <small class="text-muted flex-shrink-0 ms-2">@GetRoleCount(member)</small>
+            </li>
+          }
 
-        
-        @if (role.Id != null)
-        {
-          <input type="text" class="card-header form-control border-top border-bottom bg-light"
-                 placeholder="Search members..."
-                 @oninput="(ChangeEventArgs e) => HandleSearch(role.Id, e.Value?.ToString() ?? string.Empty)" />
-
-          <div class="list-group list-group-flush overflow-auto py-1" style="max-height:400px">
-            @{
-              var search = _searchTerms.GetValueOrDefault(role.Id, "");
-              var filteredMembers = allMembers
-                .Where(m => string.IsNullOrEmpty(search) || m.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(m => m.DisplayName)
-                .ToList();
-            }
-            @foreach (var member in filteredMembers)
-            {
-              <LoadingAndError>
-                <UserRoleItem Member="member" Role="role" />
-              </LoadingAndError>
-            }
-
-            @if (!filteredMembers.Any())
-            {
-              <div class="list-group-item text-muted">No members found</div>
-
-            }
-          </div>
-          <div class="card-footer">
-            <form @onsubmit="() => DeleteRoleAsync(role.Id)" @onsubmit:preventDefault>
-              <button type="submit" class="btn btn-outline-danger btn-sm w-100">Delete Role</button>
-            </form>
-          </div>
-        }
+          @if (!allMembers.Any())
+          {
+            <li class="list-group-item text-muted text-center py-3">No members found</li>
+          }
+        </ul>
       </div>
     </div>
-  }
-</div>
+
+    <!-- Right: Role checkboxes for selected member -->
+    <div class="col-md-8">
+      @if (selectedMember != null)
+      {
+        <div class="card h-100">
+          <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <strong class="mb-0">@selectedMember.DisplayName</strong>
+            <small class="text-muted">@GetRoleCount(selectedMember) role(s)</small>
+          </div>
+          <ul class="list-group list-group-flush overflow-auto" style="max-height:540px">
+            @foreach (var role in displayableRoles.OrderBy(r => r.Position))
+            {
+              var hasRole = GetMemberRoles(selectedMember).Contains(role.Id);
+              <li class="list-group-item d-flex justify-content-between align-items-center px-3 py-2">
+                <div class="d-flex align-items-center gap-2">
+                  @if (role.Color.HasColor())
+                  {
+                    <span
+                    style="width:14px;height:14px;background:#@(role.Color.ToHexString());border-radius:50%;display:inline-block;flex-shrink:0"></span>
+                  }
+                  <span class="text-truncate">@role.Name</span>
+                </div>
+                <LoadingAndError>
+                  <RoleToggle Member="selectedMember" Role="role" />
+                </LoadingAndError>
+              </li>
+            }
+
+            @if (!displayableRoles.Any())
+            {
+              <li class="list-group-item text-muted text-center py-3">No roles available</li>
+            }
+          </ul>
+        </div>
+      }
+      else
+      {
+        <div class="card h-100 d-flex align-items-center justify-content-center bg-light">
+          <div class="text-muted text-center py-5">
+            <h5>Select a member</h5>
+            <p class="mb-0">Choose a user from the list to manage their roles.</p>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
 
 @code {
   private List<GuildRole> allRoles = [];
   private List<GuildMember> allMembers = [];
-  private Dictionary<string, string> _searchTerms = new();
   private string? _guildName;
   private DiscordUser? _botUser;
 
-  private bool IsAssignableRole(GuildRole role) =>
-    role.Name != "@everyone" &&
-    (_guildName == null || role.Name != _guildName) &&
-    (_botUser == null || (role.Name != _botUser.Username && role.Name != _botUser.GlobalName));
-
+  private DiscordUserId? _selectedMemberId;
+  private GuildMember? selectedMember => _selectedMemberId != null ? allMembers.FirstOrDefault(m => m.User?.Id ==
+_selectedMemberId) : null;
+  private string _memberSearch = "";
   private bool _creatingRole = false;
   private bool _creating = false;
   private string _roleName = "";
+
+  private List<GuildRole> displayableRoles =>
+    allRoles.Where(IsAssignableRole).ToList();
+
+  private bool IsAssignableRole(GuildRole role) =>
+    !IsUserAssignableRole(role);
+
+  private bool IsUserAssignableRole(GuildRole role) =>
+    role.Name == "@everyone" ||
+    (_guildName != null && role.Name == _guildName) ||
+    (_botUser != null && (role.Name == _botUser.Username || role.Name == _botUser.GlobalName));
+
+  private IEnumerable<DiscordRoleId> GetMemberRoles(GuildMember member) => member.Roles;
+
+  private int GetRoleCount(GuildMember member) => member.Roles.Count(r => displayableRoles.Any(d => d.Id == r));
+
+  private string? GetMemberStyle(GuildMember member)
+  {
+    var isSelected = _selectedMemberId != null && member.User?.Id == _selectedMemberId;
+    return isSelected ? "background-color:#e8f0fe; font-weight:500;" : "";
+  }
+
+  private void SelectMember(GuildMember member)
+  {
+    if (member.User?.Id == null)
+      throw new InvalidOperationException($"Cannot select member '{member.DisplayName}' — no user ID available.");
+    _selectedMemberId = (_selectedMemberId == member.User.Id) ? null : member.User.Id;
+    StateHasChanged();
+  }
 
   [CascadingParameter]
   protected LoadingBoundaryContext? Loading { get; set; }
@@ -127,10 +172,22 @@ else
     await InvokeAsync(StateHasChanged);
   }
 
-  private void HandleSearch(string roleId, string? value)
+  private async Task ToggleRoleAsync(GuildMember member, GuildRole role)
   {
-    _searchTerms[roleId] = value ?? "";
-    StateHasChanged();
+    var userId = member.User?.Id;
+    if (userId == null)
+      return;
+
+    var hasRole = GetMemberRoles(member).Contains(role.Id);
+
+    if (hasRole)
+    {
+      await Discord.RemoveRoleFromMemberAsync(userId, role.Id);
+    }
+    else
+    {
+      await Discord.AddRoleToMemberAsync(userId, role.Id);
+    }
   }
 
   private async Task CreateRoleAsync()
@@ -141,8 +198,7 @@ else
     using var _ = Loading?.Start();
     _creating = true;
     await Discord.CreateRoleAsync(_roleName, 0, true);
-    _creatingRole = false;
-    _roleName = "";
+    allRoles = await Discord.GetRolesAsync();
     _creating = false;
   }
 

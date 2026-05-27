@@ -11,56 +11,43 @@
   <div class="card-body">
     @if (_shares.Count > 0)
     {
-      <div class="mb-3">
-        <label class="form-label">Active Invite Links</label>
-        @foreach (var share in _shares)
-        {
-          var channelName = share.Channel?.Name ?? "Unknown";
-          <form @onsubmit="() => CopyToClipboardAsync(share.Url)" @onsubmit:preventDefault>
-            <div class="input-group mb-2">
-              <span class="input-group-text">#@channelName</span>
-              <input type="text" class="form-control" readonly value="@share.Url" />
-              <button class="btn btn-outline-secondary" type="submit">
-                Copy
-              </button>
-            </div>
-          </form>
-        }
-      </div>
+      @foreach (var share in _shares)
+      {
+        var channelName = share.Channel?.Name?.Value ?? "Unknown";
+        <div class="input-group mb-2">
+          <span class="input-group-text">#@channelName</span>
+          <input type="text" class="form-control" readonly value="@share.Url" />
+          <button type="button" class="btn btn-outline-secondary"
+                  @onclick="() => CopyToClipboardAsync(share.Url)">Copy</button>
+          <button type="button" class="btn btn-outline-danger" @onclick="() => DeleteShareAsync(share.Code)">Delete</button>
+        </div>
+      }
     }
     else
     {
-      <p class="text-muted mb-3">No active invite links.</p>
-    }
-
-    <form @onsubmit="GenerateInviteAsync" @onsubmit:preventDefault>
-      <div class="mb-3">
-        <label for="invite-channel" class="form-label">Channel</label>
-        <select class="form-select" @bind="_selectedChannelId">
-          <option value="">-- select a channel --</option>
-          @foreach (var c in _channels.Where(c => c.Type != 4).OrderBy(c => (int?)c.Position ?? int.MaxValue))
-          {
-            if (c.Name != null)
+      <form @onsubmit="GenerateInviteAsync" @onsubmit:preventDefault>
+        <div class="input-group">
+          <select class="form-select" @bind="_selectedChannelId">
+            <option value="">-- select a channel --</option>
+            @foreach (var c in _channels.Where(c => c.Type != 4).OrderBy(c => (int?)c.Position ?? int.MaxValue))
             {
-              <option value="@c.Id">@c.Name (@c.TypeName)</option>
+              if (c.Name != null)
+              {
+                <option value="@c.Id">@c.Name (@c.TypeName)</option>
+              }
             }
-          }
-        </select>
-      </div>
-
-      <button type="submit" class="btn btn-primary btn-sm"
-              disabled="@(_generating || string.IsNullOrWhiteSpace(_selectedChannelId))">
-        @if (_generating)
-        {
-          <span class="spinner-border spinner-border-sm me-1"></span>
-        }
-        Generate Invite
-      </button>
-      @if (_statusMessage != null)
-      {
-        <div class="alert alert-info mt-2 mb-0 py-2">@_statusMessage</div>
-      }
-    </form>
+          </select>
+          <button type="submit" class="btn btn-primary"
+                  disabled="@(_generating || string.IsNullOrWhiteSpace(_selectedChannelId))">
+            @if (_generating)
+            {
+              <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            Generate Invite
+          </button>
+        </div>
+      </form>
+    }
   </div>
 </div>
 
@@ -71,7 +58,6 @@
   private List<GuildChannel> _channels = [];
   private List<DiscordInvite> _shares = [];
   private string? _selectedChannelId;
-  private string? _statusMessage;
   private bool _generating = false;
 
   protected override async Task OnInitializedAsync()
@@ -99,26 +85,17 @@
   private async Task GenerateInviteAsync()
   {
     if (string.IsNullOrWhiteSpace(_selectedChannelId))
-    {
-      Console.WriteLine("No channel selected for invite generation.");
       return;
-    }
-    if (_shares.Count > 0)
-    {
-      _statusMessage = "An active invite link already exists. Delete it before generating a new one.";
-      return;
-    }
 
-    _statusMessage = null;
     _generating = true;
-    await Discord.GenerateShareAsync(_selectedChannelId!);
+    await Discord.GenerateShareAsync(_selectedChannelId);
     _generating = false;
   }
 
-  private async Task CopyToClipboardAsync(string text)
+  private async Task DeleteShareAsync(InviteCode code)
   {
-    await Task.CompletedTask;
-    // Blazor Web Server doesn't have direct clipboard access without JS interop
-    // For now, the user can select and copy manually
+    await Discord.DeleteShareAsync(code);
   }
+
+  private Task CopyToClipboardAsync(string text) => Task.CompletedTask;
 }
