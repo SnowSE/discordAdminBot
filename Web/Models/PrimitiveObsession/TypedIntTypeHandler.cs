@@ -11,7 +11,7 @@ public class TypedIntTypeHandler<TTypedInt> : SqlMapper.TypeHandler<TTypedInt>
       throw new InvalidOperationException(
         $"Cannot set null value for non-nullable type '{typeof(TTypedInt).FullName}' in database parameter '{parameter.ParameterName}'."
       );
-    parameter.Value = value;
+    parameter.Value = (int)value.Value;
   }
 
   public override TTypedInt Parse(object field)

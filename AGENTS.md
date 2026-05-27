@@ -14,3 +14,5 @@ make sure all exception messages are unique to aid in future codebase searches t
 
 
 treat build warnings as build errors, if you are unsure about the correct way to solve build warnings ask the user for guidance
+
+when doing premature returns for invalid data, always make sure to log a unique message explaining why the premature return is happening, somethimes throwing an error or displaying an error message to the user is more appropriate.

@@ -2,6 +2,7 @@
 @using Web.Services
 @using Web.Components.Shared
 @inject DiscordService Discord
+@rendermode InteractiveServer
 
 <div class="card">
   <div class="card-header">
@@ -55,6 +56,10 @@
         }
         Generate Invite
       </button>
+      @if (_statusMessage != null)
+      {
+        <div class="alert alert-info mt-2 mb-0 py-2">@_statusMessage</div>
+      }
     </form>
   </div>
 </div>
@@ -66,6 +71,7 @@
   private List<GuildChannel> _channels = [];
   private List<DiscordInvite> _shares = [];
   private string? _selectedChannelId;
+  private string? _statusMessage;
   private bool _generating = false;
 
   protected override async Task OnInitializedAsync()
@@ -93,8 +99,17 @@
   private async Task GenerateInviteAsync()
   {
     if (string.IsNullOrWhiteSpace(_selectedChannelId))
+    {
+      Console.WriteLine("No channel selected for invite generation.");
       return;
+    }
+    if (_shares.Count > 0)
+    {
+      _statusMessage = "An active invite link already exists. Delete it before generating a new one.";
+      return;
+    }
 
+    _statusMessage = null;
     _generating = true;
     await Discord.GenerateShareAsync(_selectedChannelId!);
     _generating = false;

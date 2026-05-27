@@ -128,6 +128,6 @@ public class TypedStringTypeHandler<T> : SqlMapper.TypeHandler<T>
       throw new InvalidOperationException(
         $"TypedStringTypeHandler<{typeof(T).Name}>: cannot set null value for non-nullable type '{typeof(T).FullName}' in database parameter '{parameter.ParameterName}'."
       );
-    parameter.Value = value;
+    parameter.Value = (string)value;
   }
 }

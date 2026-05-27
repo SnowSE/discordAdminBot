@@ -87,8 +87,8 @@ public class DiscordService(DiscordAPI api, DiscordDB db)
     if (shares.Count > 0)
       return;
 
-    var invite = await api.CreateInviteAsync(channelId, ct);
-    await db.SaveSharesAsync([invite]);
+    await api.CreateInviteAsync(channelId, ct);
+    await SyncInvitesAsync(false, ct);
     DbDataChanged?.Invoke();
   }
 
