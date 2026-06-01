@@ -1,93 +1,270 @@
 @using Web.Models
 @using Web.Models.Snow
 @using Web.Services
-@using Web.Components.Shared
-@inject DiscordService Discord
 @inject SnowCourseService Snow
+@inject DiscordService Discord
 
 <div class="ms-5 mb-2">
   @if (_loading)
   {
-    <div class="text-muted small">
+    <div class="text-muted ">
       <span class="spinner-border spinner-border-sm me-1"></span>
       Loading students...
     </div>
   }
   else if (_students.Any())
   {
-    <div class="small">
+    <div class="">
       <div class="text-muted mb-1">Students (@_students.Count):</div>
       @foreach (var student in _students.Where(s => s?.BadgerId != null).OrderBy(s => s.LastName ?? ""))
       {
         if (student.BadgerId == null) continue;
 
-        var mapping = _mappings.FirstOrDefault(m => m.BadgerId == student.BadgerId);
+        var mapping = Mappings.FirstOrDefault(m => m.BadgerId == student.BadgerId);
         var isMapped = mapping != default((SnowBadgerId, DiscordUserId));
-        <div class="d-flex align-items-center gap-2 py-1">
-          <span>@(student.FirstName ?? "") @(student.LastName ?? "")</span>
-          <span class="text-muted font-monospace" style="font-size:.75rem">@student.BadgerId.Value</span>
-          @if (isMapped)
+        <div class="mb-1 border rounded @(isMapped ? "border-success-subtle" : "border-secondary-subtle")"
+             style="max-width:420px">
+          <div class="p-2">
+            <div class="d-flex align-items-center justify-content-between">
+              <div>
+                <span class="fw-semibold fs-6 ms-n1">@student.FirstName</span>
+                <span class="text-body fs-6 ms-n1">@student.LastName</span>
+                <span class="text-muted font-monospace ms-1">@student.BadgerId.Value</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                @if (isMapped)
+                {
+                  if (_confirmingUnassignBadgerId == student.BadgerId.Value)
+                  {
+                    <div class="d-flex flex-column align-items-start">
+                      <small class="text-danger fw-semibold mb-1">Are you sure?</small>
+                      <button class="btn btn-sm btn-danger" @onclick="() => ConfirmUnassignStudentAsync(mapping.BadgerId)">Yes,
+                        unassign</button>
+                        <button class="btn btn-sm btn-light" @onclick="() => CancelUnassign()">Cancel</button>
+                      </div>
+                    }
+                  else
+                    {
+                      <button class="btn btn-sm btn-outline-danger"
+                              @onclick="() => RequestUnassignStudentAsync(student.BadgerId.Value)">Unassign</button>
+                    }
+                  }
+                  else
+                  {
+                    <button class="btn btn-sm btn-outline-primary"
+                            @onclick="() => ToggleAssignPanel(student.BadgerId.Value)">Assign</button>
+                  }
+                </div>
+              </div>
+
+              @if (isMapped)
+              {
+                var discordMember = Members.FirstOrDefault(m => m.User?.Id == mapping.DiscordUserId);
+                <div class="mt-2">
+                  <div class="text-body-secondary">
+                    @if (discordMember is not null)
+                    {
+                      <span class="fw-semibold">@discordMember.DisplayName</span>
+                      <span class="ms-1 text-muted">@discordMember.User?.Username.Value</span>
+                    }
+                    else
+                    {
+                      <span class="text-danger">Discord user not found</span>
+                    }
+                  </div>
+                  @if (discordMember is not null)
+                  {
+                    var memberRoleIds = discordMember.Roles.Select(r => r.Value).ToHashSet();
+                    var memberRoles = Roles.Where(r => memberRoleIds.Contains(r.Id.Value))
+                      .OrderBy(r => r.Position)
+                      .ToList();
+
+                    @if (memberRoles.Any())
+                    {
+                      <div class="d-flex flex-wrap gap-1 mt-1">
+                        @foreach (var role in memberRoles)
+                        {
+                          <span class="badge text-bg-secondary">
+                            @role.Name.Value
+                          </span>
+                        }
+                      </div>
+                    }
+                    else
+                    {
+                      <span class="text-muted">no roles assigned on server</span>
+                    }
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
+          @if (_assigningBadgerId == student.BadgerId.Value)
           {
-            var discordMember = _members.FirstOrDefault(m => m.User?.Id == mapping.DiscordUserId);
-            <span class="badge bg-success" style="font-size:.65rem">
-              mapped → @(discordMember?.DisplayName ?? mapping.DiscordUserId.Value)
-            </span>
+            <div class="ms-3 mt-1 mb-2 border rounded p-2 bg-body-tertiary" style="max-width:360px">
+              <label class="form-label form-label-sm">Assign to Discord User</label>
+              <input type="text" class="form-control form-control-sm mb-2" placeholder="Search by name or id..."
+                     value="@_assignSearchText" @oninput="OnAssignSearchInput" />
+              <div class="assign-member-list">
+                @if (_filteredUnassignedMembers.Any())
+                {
+                  foreach (var member in _filteredUnassignedMembers)
+                  {
+                    var discordUserId = member.User?.Id;
+                    if (discordUserId == null) continue;
+
+                    <div class="d-flex flex-column px-1 py-2 rounded assign-member-row"
+                         @onclick="() => AssignStudentAsync(student.BadgerId.Value, discordUserId.Value)">
+                      <span class="text-truncate">@member.DisplayName</span>
+                      <span class="text-muted ps-3">
+                        @member.User?.Username.Value @(member.Nick != null ? $"(nick: {member.Nick.Value})" : "")
+                      </span>
+                    </div>
+                  }
+                }
+                else
+                {
+                  <div class="text-muted text-center py-3">No unassigned users found.</div>
+                }
+              </div>
+            </div>
           }
-          else
-          {
-            <span class="badge bg-secondary" style="font-size:.65rem">unmapped</span>
-          }
-        </div>
-      }
-    </div>
-  }
+        }
+      </div>
+    }
   else
-  {
-    <div class="text-muted small">No students cached. Sync this course to load roster.</div>
-  }
-</div>
+    {
+      <div class="text-muted ">No students cached. Sync this course to load roster.</div>
+    }
+  </div>
 
 @code {
   [Parameter, EditorRequired]
   public CourseChannelAssignment Assignment { get; set; } = null!;
 
+  [Parameter, EditorRequired]
+  public List<(SnowBadgerId BadgerId, DiscordUserId DiscordUserId)> Mappings { get; set; } = [];
+
+  [Parameter, EditorRequired]
+  public List<GuildMember> Members { get; set; } = [];
+
+  [Parameter, EditorRequired]
+  public List<GuildRole> Roles { get; set; } = [];
+
+  [Parameter]
+  public EventCallback OnMappingChanged { get; set; }
+
   private List<SnowSectionStudent> _students = [];
-  private List<(SnowBadgerId BadgerId, DiscordUserId DiscordUserId)> _mappings = [];
-  private List<GuildMember> _members = [];
   private bool _loading = true;
+
+  private string? _assigningBadgerId;
+  private string _assignSearchText = "";
+  private List<GuildMember> _filteredUnassignedMembers = [];
+
+  private string? _confirmingUnassignBadgerId;
 
   protected override async Task OnInitializedAsync()
   {
-    await LoadDataAsync();
+    UpdateFilteredUnassignedMembers();
   }
 
-  private async Task LoadDataAsync()
+  protected override async Task OnParametersSetAsync()
+  {
+    await LoadStudentsAsync();
+    UpdateFilteredUnassignedMembers();
+  }
+
+  private async Task LoadStudentsAsync()
   {
     _loading = true;
     StateHasChanged();
 
     try
     {
-      var studentsTask = Snow.GetCachedSectionStudentsAsync(Assignment.Crn, Assignment.TermCode);
-      var mappingsTask = Discord.GetStudentDiscordMappingsAsync();
-      var membersTask = Discord.GetMembersAsync();
-      await Task.WhenAll(studentsTask, mappingsTask, membersTask);
-
-      _students = studentsTask.Result ?? [];
-      _mappings = mappingsTask.Result ?? [];
-      _members = membersTask.Result ?? [];
+      _students = await Snow.GetCachedSectionStudentsAsync(Assignment.Crn, Assignment.TermCode);
     }
     catch (Exception ex)
     {
-      Console.WriteLine($"Error loading student data: {ex.Message}");
+      Console.WriteLine($"Error loading students for CRN '{Assignment.Crn}' term '{Assignment.TermCode}': {ex.Message}");
       _students = [];
-      _mappings = [];
-      _members = [];
     }
     finally
     {
       _loading = false;
       StateHasChanged();
     }
+  }
+
+  private HashSet<string> GetMappedDiscordUserIds() => Mappings.Select(m => m.DiscordUserId.Value).ToHashSet();
+
+  private void UpdateFilteredUnassignedMembers()
+  {
+    var mappedIds = GetMappedDiscordUserIds();
+    var unassigned = Members.Where(m => !mappedIds.Contains(m.User?.Id?.Value ?? "")).ToList();
+
+    if (string.IsNullOrWhiteSpace(_assignSearchText))
+      _filteredUnassignedMembers = [.. unassigned.OrderBy(x => x.DisplayName)];
+    else
+    {
+      var search = _assignSearchText.ToLowerInvariant();
+      _filteredUnassignedMembers = [.. unassigned
+        .Where(m => m.DisplayName.ToLowerInvariant().Contains(search) ||
+                    (m.User?.Username?.Value ?? "").ToLowerInvariant().Contains(search) ||
+                    (m.User?.Id?.Value ?? "").Contains(search))
+        .OrderBy(x => x.DisplayName)];
+    }
+  }
+
+  private void ToggleAssignPanel(string badgerId)
+  {
+    if (_assigningBadgerId == badgerId)
+    {
+      _assigningBadgerId = null;
+      _assignSearchText = "";
+      UpdateFilteredUnassignedMembers();
+    }
+    else
+    {
+      _assigningBadgerId = badgerId;
+      var assigningStudent = _students.FirstOrDefault(s => s.BadgerId?.Value == badgerId);
+      _assignSearchText = assigningStudent?.FirstName ?? "";
+      UpdateFilteredUnassignedMembers();
+    }
+    StateHasChanged();
+  }
+
+  private void OnAssignSearchInput(ChangeEventArgs e)
+  {
+    _assignSearchText = e.Value?.ToString() ?? "";
+    UpdateFilteredUnassignedMembers();
+    StateHasChanged();
+  }
+
+  private async Task AssignStudentAsync(string badgerId, string discordUserId)
+  {
+    await Discord.SaveStudentDiscordMappingAsync(new SnowBadgerId(badgerId), new DiscordUserId(discordUserId));
+    _assigningBadgerId = null;
+    _assignSearchText = "";
+    await OnMappingChanged.InvokeAsync();
+  }
+
+  private void RequestUnassignStudentAsync(string badgerId)
+  {
+    _confirmingUnassignBadgerId = badgerId;
+    StateHasChanged();
+  }
+
+  private void CancelUnassign()
+  {
+    _confirmingUnassignBadgerId = null;
+    StateHasChanged();
+  }
+
+  private async Task ConfirmUnassignStudentAsync(SnowBadgerId badgerId)
+  {
+    await Discord.DeleteStudentDiscordMappingAsync(badgerId);
+    _confirmingUnassignBadgerId = null;
+    await OnMappingChanged.InvokeAsync();
   }
 }

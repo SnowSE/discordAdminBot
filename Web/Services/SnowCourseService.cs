@@ -130,6 +130,22 @@ public class SnowCourseService(IHttpClientFactory httpClientFactory, SnowCourseD
   public Task<List<SnowCourse>> GetCoursesForTermAsync(SnowTermCode termCode) =>
     db.GetCoursesForTermAsync(termCode);
 
+  public async Task<
+    Dictionary<(SnowCrn Crn, SnowTermCode TermCode), string?>
+  > GetCourseNamesBatchAsync(List<CourseChannelAssignment> assignments)
+  {
+    var pairs = assignments.Select(a => (a.Crn, a.TermCode)).ToList();
+    return await db.GetCourseNamesBatchAsync(pairs);
+  }
+
+  public async Task<
+    Dictionary<(SnowCrn Crn, SnowTermCode TermCode), DateTime?>
+  > GetSyncTimesBatchAsync(List<CourseChannelAssignment> assignments)
+  {
+    var pairs = assignments.Select(a => (a.Crn, a.TermCode)).ToList();
+    return await db.GetSyncTimesBatchAsync(pairs);
+  }
+
   public static string BuildTermDisplayName(SnowTermCode termCode)
   {
     if (termCode.Value.Length < 6)

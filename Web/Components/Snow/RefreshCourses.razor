@@ -3,16 +3,7 @@
 @inject SnowCourseService Snow
 
 <div class="mb-4">
-  <p class="text-muted small mb-2">
-    Open <a href="https://my.snow.edu" target="_blank">my.snow.edu</a>, open DevTools console, paste and run:
-  </p>
-  <div class="position-relative mb-2">
-    <pre class="bg-dark text-light p-3 rounded small pe-5 mb-0" style="white-space: pre-wrap; word-break: break-all;">@SnippetText</pre>
-    <button type="button" class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2"
-            @onclick="CopySnippetAsync">
-      @(_copied ? "Copied!" : "Copy")
-    </button>
-  </div>
+  <JwtInput Label="Token" @bind-Token="_model.JwtToken" />
 
   <EditForm Model="_model" OnValidSubmit="RefreshAsync">
     <DataAnnotationsValidator />
@@ -25,12 +16,6 @@
             <option value="@termOption.TermCode">@termOption.DisplayName</option>
           }
         </InputSelect>
-      </div>
-      <div class="flex-grow-1">
-        <label class="form-label small mb-1">Token</label>
-        <InputText class="form-control form-control-sm font-monospace"
-                   @bind-Value="_model.JwtToken"
-                   autocomplete="off" spellcheck="false" />
       </div>
       <button type="submit" class="btn btn-primary btn-sm" disabled="@_refreshing">
         @if (_refreshing)
@@ -51,17 +36,8 @@
   [CascadingParameter]
   protected LoadingBoundaryContext? Loading { get; set; }
 
-  private const string SnippetText =
-    "copy(\n" +
-    "  JSON.parse(\n" +
-    "    localStorage.getItem(\"oidc.user:https://kc.snow.edu/realms/snowcollege/:portal\")\n" +
-    "  ).access_token\n" +
-    ");\n" +
-    "console.log(\"Auth token copied to clipboard\");";
-
   private readonly RefreshModel _model = new();
   private bool _refreshing;
-  private bool _copied;
   private string? _errorMessage;
 
   private List<(SnowTermCode TermCode, string DisplayName)> _termOptions = [];
@@ -72,19 +48,11 @@
     _model.TermCode = _termOptions[0].TermCode.Value;
   }
 
-  private async Task CopySnippetAsync()
-  {
-    _copied = true;
-    await Task.Delay(2000);
-    _copied = false;
-    StateHasChanged();
-  }
-
   private async Task RefreshAsync()
   {
     if (string.IsNullOrWhiteSpace(_model.JwtToken))
     {
-      _errorMessage = "Paste your auth token first.";
+      _errorMessage = "Paste your auth token before refreshing courses.";
       return;
     }
     _errorMessage = null;

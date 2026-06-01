@@ -3,10 +3,6 @@ using Microsoft.Data.Sqlite;
 
 namespace Web.Services;
 
-/// <summary>
-/// Opens and initialises the SQLite cache database.
-/// Registered as a singleton; call OpenConnection() to get a connection.
-/// </summary>
 public class CacheDb
 {
   private readonly string _connectionString;
@@ -17,12 +13,37 @@ public class CacheDb
     InitialiseSchema();
   }
 
-  public SqliteConnection OpenConnection() => new(_connectionString);
+  public DbScope OpenSession()
+  {
+    var conn = CreateConnection();
+    return new DbScope(new DbSession(conn, null));
+  }
+
+  public async Task<DbScope> BeginTransactionAsync()
+  {
+    var conn = CreateConnection();
+    var tx = (SqliteTransaction)(await conn.BeginTransactionAsync());
+    return new DbScope(new DbSession(conn, tx));
+  }
+
+  private SqliteConnection CreateConnection()
+  {
+    var conn = new SqliteConnection(_connectionString);
+    conn.Open();
+    EnableForeignKeys(conn);
+    return conn;
+  }
+
+  private static void EnableForeignKeys(SqliteConnection conn) =>
+    conn.Execute("PRAGMA foreign_keys = ON");
 
   private void InitialiseSchema()
   {
-    using var conn = OpenConnection();
-    conn.Open();
+    using var conn = CreateConnection();
+    RunMigration1(conn);
+  }
+
+  private static void RunMigration1(SqliteConnection conn) =>
     conn.Execute(
       """
       CREATE TABLE IF NOT EXISTS discord_members (
@@ -81,8 +102,8 @@ public class CacheDb
       CREATE TABLE IF NOT EXISTS course_channel_assignments (
           crn                TEXT NOT NULL PRIMARY KEY,
           term_code          TEXT NOT NULL,
-          discord_channel_id TEXT NOT NULL,
-          discord_role_id    TEXT NOT NULL,
+          discord_channel_id TEXT NOT NULL REFERENCES discord_channels(id) ON DELETE CASCADE,
+          discord_role_id    TEXT NOT NULL REFERENCES discord_roles(id) ON DELETE CASCADE,
           created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
       );
 
@@ -90,7 +111,7 @@ public class CacheDb
           id              INTEGER PRIMARY KEY AUTOINCREMENT,
           crn             TEXT NOT NULL,
           term_code       TEXT NOT NULL,
-          data            TEXT NOT NULL,
+          data            TEXT    NOT NULL,
           last_synced_at  TEXT
       );
 
@@ -98,7 +119,8 @@ public class CacheDb
           badger_id       TEXT NOT NULL PRIMARY KEY,
           discord_user_id TEXT NOT NULL UNIQUE
       );
+
+
       """
     );
-  }
 }

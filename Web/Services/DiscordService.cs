@@ -17,6 +17,7 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
     var invitesTask = SyncInvitesAsync(skipNotify: true, ct: ct);
 
     await Task.WhenAll(guildTask, botUserTask, membersTask, channelsTask, rolesTask, invitesTask);
+    await db.DeleteOrphanedCourseChannelAssignmentsAsync();
     DbDataChanged?.Invoke();
   }
 
@@ -163,8 +164,28 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
     DbDataChanged?.Invoke();
   }
 
-  public Task<List<CourseChannelAssignment>> GetCourseChannelAssignmentsAsync() =>
-    db.GetCourseChannelAssignmentsAsync();
+  public async Task DeleteCourseChannelAsync(SnowCrn crn, CancellationToken ct = default)
+  {
+    var assignments = await GetCourseChannelAssignmentsAsync();
+    var assignment = assignments.FirstOrDefault(a => a.Crn == crn);
+    if (assignment is null)
+      throw new InvalidOperationException(
+        $"No course-channel assignment found for CRN '{crn}' while attempting to delete channel."
+      );
+
+    await api.DeleteChannelAsync(assignment.DiscordChannelId.Value, ct);
+    await db.DeleteCourseChannelAssignmentAsync(crn);
+
+    var freshChannels = await api.FetchChannelsAsync(ct);
+    await db.SaveChannelsAsync(freshChannels);
+
+    DbDataChanged?.Invoke();
+  }
+
+  public async Task<List<CourseChannelAssignment>> GetCourseChannelAssignmentsAsync()
+  {
+    return await db.GetCourseChannelAssignmentsAsync();
+  }
 
   public async Task<CourseChannelAssignment> SetupCourseChannelAsync(
     SnowCrn crn,
@@ -194,6 +215,9 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
 
     var channel = await api.CreateTextChannelAsync(channelName, categoryId.Value, ct);
 
+    var freshChannels = await api.FetchChannelsAsync(ct);
+    await db.SaveChannelsAsync(freshChannels);
+
     var assignment = new CourseChannelAssignment(
       crn,
       termCode,
@@ -202,9 +226,6 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
       DateTime.UtcNow
     );
     await db.SaveCourseChannelAssignmentAsync(assignment);
-
-    var freshChannels = await api.FetchChannelsAsync(ct);
-    await db.SaveChannelsAsync(freshChannels);
 
     DbDataChanged?.Invoke();
     return assignment;
@@ -259,4 +280,18 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
 
   public Task DeleteStudentDiscordMappingAsync(SnowBadgerId badgerId) =>
     db.DeleteStudentDiscordMappingAsync(badgerId);
+
+  /// <summary>Formats a sync timestamp into a human-readable display string (e.g., "synced 2h ago").</summary>
+  public static string? FormatSyncStatus(DateTime? lastSyncedAt)
+  {
+    if (lastSyncedAt is null)
+      return null;
+
+    var elapsed = DateTime.UtcNow - lastSyncedAt.Value;
+    if (elapsed.TotalMinutes < 60)
+      return $"synced {(int)elapsed.TotalMinutes}m ago";
+    if (elapsed.TotalHours < 24)
+      return $"synced {(int)elapsed.TotalHours}h ago";
+    return $"synced {(int)elapsed.TotalDays}d ago";
+  }
 }

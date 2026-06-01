@@ -4,11 +4,9 @@
 @inject DiscordService Discord
 @rendermode InteractiveServer
 
-<div class="card">
-  <div class="card-header">
-    <h5 class="mb-0">Server Invite</h5>
-  </div>
-  <div class="card-body">
+<div class="d-flex align-items-baseline ">
+    <h5 class="mb-0">Server Invite (share this code with your class in a canvas assignment or something)</h5>
+  <div class="">
     @if (_shares.Count > 0)
     {
       @foreach (var share in _shares)
@@ -17,8 +15,6 @@
         <div class="input-group mb-2">
           <span class="input-group-text">#@channelName</span>
           <input type="text" class="form-control" readonly value="@share.Url" />
-          <button type="button" class="btn btn-outline-secondary"
-                  @onclick="() => CopyToClipboardAsync(share.Url)">Copy</button>
           <button type="button" class="btn btn-outline-danger" @onclick="() => DeleteShareAsync(share.Code)">Delete</button>
         </div>
       }
@@ -97,5 +93,4 @@
     await Discord.DeleteShareAsync(code);
   }
 
-  private Task CopyToClipboardAsync(string text) => Task.CompletedTask;
 }

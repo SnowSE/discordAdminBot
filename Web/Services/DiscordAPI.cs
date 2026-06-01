@@ -112,6 +112,12 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     return (await response.Content.ReadFromJsonAsync<GuildChannel>(JsonOptions, ct))!;
   }
 
+  public async Task DeleteChannelAsync(string channelId, CancellationToken ct = default)
+  {
+    var response = await _http.DeleteAsync($"channels/{channelId}", ct);
+    response.EnsureSuccessStatusCode();
+  }
+
   public async Task<GuildRole> CreateRoleAsync(
     string roleName,
     int color = 0,

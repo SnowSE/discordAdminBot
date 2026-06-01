@@ -25,3 +25,11 @@ when creating user interfaces, always consider heirarchy of concerns and that le
 - there are some data types that don't require labels, like money, dates, and emails
 
 when making classes to hold data, use records and follow the primitive obsession pattern, find other primitives in web/models/primitiveobsession folder. This allows for better arg checking.
+
+do not give long summaries at the end. the user will read the code. use good varable names and single level of abstraction principles to keep the code readable.
+
+do not use useless comments and xml comments.
+
+
+never use string interpolation in sql statements such as $"INSERT INTO {tableName} ({insertColumns}) VALUES (@id, @data, @updatedAt)" only every use parameterized sql.
+- sql functions should not be generalized, each time we cross the db boundary we should have proper and purpose built sql for the interaction.

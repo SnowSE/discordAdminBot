@@ -1,25 +1,104 @@
-@using Web.Components.Shared
+@using Microsoft.JSInterop
 
-<div>
-  <label class="form-label small mb-1">@Label</label>
-  <InputText @bind-Value="_token" class="form-control form-control-sm font-monospace" autocomplete="off"
-             spellcheck="false" />
+<script>
+  (function () {
+    if (window.__snowAuth) return;
+    window.__snowAuth = {
+      copyToClipboard: function (text) {
+        return navigator.clipboard.writeText(text);
+      },
+      openMySnow: function () {
+        window.open('https://my.snow.edu', '_blank');
+      }
+    };
+  })();
+</script>
+
+<div class="mb-3">
+  <p class="text-muted small mb-2">
+    <a href="https://my.snow.edu" target="_blank" @onclick:stopPropagation>Open my.snow.edu</a>, open DevTools console,
+    paste and run:
+  </p>
+  <div class="position-relative mb-3">
+    <pre class="bg-dark text-light p-3 rounded small pe-5 mb-0"
+         style="white-space: pre-wrap; word-break: break-all;">@SnippetText</pre>
+    <button type="button" class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2"
+            @onclick="CopySnippetAsync">
+      @(_copied ? "Copied!" : "Copy")
+    </button>
+    @if (_copyError is not null)
+    {
+      <div class="text-danger small mt-1">@_copyError</div>
+    }
+  </div>
+
+  <div>
+    <label class="form-label small mb-1">@Label</label>
+    <input type="text" value="@_token" @oninput="OnTokenInputChanged"
+           class="form-control form-control-sm font-monospace" autocomplete="off" spellcheck="false" />
+  </div>
 </div>
 
 @code {
+  [Inject] private IJSRuntime JS { get; set; } = default!;
+
   [Parameter]
   public string? Label { get; set; } = "JWT Token";
 
   [Parameter]
-  public string? InitialValue { get; set; }
+  public string? Token { get; set; }
 
   [Parameter]
-  public EventCallback<string> TokenChanged { get; set; }
+  public EventCallback<string?> TokenChanged { get; set; }
+
+  private const string SnippetText =
+    "copy(\n" +
+    "  JSON.parse(\n" +
+    "    localStorage.getItem(\"oidc.user:https://kc.snow.edu/realms/snowcollege/:portal\")\n" +
+    "  ).access_token\n" +
+    ");\n" +
+    "console.log(\"Auth token copied to clipboard\");";
 
   private string _token = "";
+  private bool _copied;
+  private string? _copyError;
 
   protected override void OnInitialized()
   {
-    _token = InitialValue ?? "";
+    _token = Token ?? "";
+  }
+
+  protected override void OnParametersSet()
+  {
+    _token = Token ?? "";
+  }
+
+  private async Task CopySnippetAsync()
+  {
+    try
+    {
+      await JS.InvokeVoidAsync("window.__snowAuth.openMySnow");
+      await JS.InvokeVoidAsync("window.__snowAuth.copyToClipboard", SnippetText);
+    }
+    catch (Exception ex) when (ex is not OperationCanceledException)
+    {
+      _copyError = $"Copy failed ({ex.GetType().Name}). Copy the snippet manually from the block above.";
+      StateHasChanged();
+      return;
+    }
+    _copied = true;
+    StateHasChanged();
+    await Task.Delay(2000);
+    _copied = false;
+    StateHasChanged();
+  }
+
+  private async Task OnTokenInputChanged(ChangeEventArgs e)
+  {
+    _token = e.Value?.ToString() ?? "";
+    if (TokenChanged.HasDelegate)
+    {
+      await TokenChanged.InvokeAsync(_token);
+    }
   }
 }
