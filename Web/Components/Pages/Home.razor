@@ -1,4 +1,5 @@
 ﻿@using Web.Components.Discord
+@using Web.Components.Snow
 @using Web.Components.Shared
 @using Web.Services
 @page "/"
@@ -11,8 +12,33 @@
     <h1 class="mb-0">Discord Overview</h1>
     <SyncStatus />
   </div>
+
+  <div class="mb-4">
+    @if (_addingCourse)
+    {
+      <div class="mt-1">
+        <LoadingAndError>
+          <AddMyCourse OnCancel="() => _addingCourse = false" />
+        </LoadingAndError>
+      </div>
+    }
+    else
+    {
+      <button class="btn btn-primary btn-sm" @onclick="() => _addingCourse = true">
+        + Add My Course
+      </button>
+    }
+  </div>
+
   <InviteToServer />
+  <LoadingAndError>
+    <ChannelList />
+  </LoadingAndError>
   <LoadingAndError>
     <UserRoles />
   </LoadingAndError>
 </LoadingAndError>
+
+@code {
+  private bool _addingCourse;
+}

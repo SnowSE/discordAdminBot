@@ -8,7 +8,7 @@ prefer functional methods when working with lists of data
 
 do not make architecture decisions before getting approval from the user
 
-never use the null forgiveness operator or do inappropriate casting. throw exceptions if the data is in an inappropriate state
+never use the null forgiveness operator `!` or do inappropriate casting. throw exceptions if the data is in an inappropriate state
 
 make sure all exception messages are unique to aid in future codebase searches to find the line that threw the error. never re-use exact exception messages, they can mean the same thing, but the text should be distinct and indicate what was happening that caused the error. do not include direct function names because those may change later. include relevant ids and names with enough information that the error can be reproduced
 
@@ -23,3 +23,5 @@ when creating user interfaces, always consider heirarchy of concerns and that le
 - when using icons still label with a word, even if the label id de-epmhasized
 - never use the label: value pattern, users don't understand it quickly, be more creative with intuitive data labeling
 - there are some data types that don't require labels, like money, dates, and emails
+
+when making classes to hold data, use records and follow the primitive obsession pattern, find other primitives in web/models/primitiveobsession folder. This allows for better arg checking.

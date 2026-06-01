@@ -1,0 +1,259 @@
+@using Web.Models
+@using Web.Models.Snow
+@using Web.Services
+@inject DiscordService Discord
+@inject SnowCourseService Snow
+
+@if (_courses.Count == 0)
+{
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <button class="btn btn-outline-secondary btn-sm" @onclick="OnCancel">Cancel</button>
+  </div>
+  <p class="text-muted small">No courses cached. Use the Courses page to refresh course data first.</p>
+}
+else
+{
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <button class="btn btn-outline-secondary btn-sm" @onclick="OnCancel">Cancel</button>
+    <div class="d-flex gap-2">
+      @foreach (var term in _availableTerms)
+      {
+        <button class="btn btn-sm @(_selectedTermCode == term.TermCode ? "btn-secondary" : "btn-outline-secondary")"
+                @onclick="() => _selectedTermCode = term.TermCode">
+          @term.DisplayName
+        </button>
+      }
+    </div>
+  </div>
+  <input class="form-control mb-3" placeholder="Search by name, code, or instructor…" @bind="_filter"
+         @bind:event="oninput" />
+
+  <div class="d-flex flex-wrap gap-3 mb-4">
+    @foreach (var course in FilteredCourses)
+    {
+      <CourseCard Course="course" IsConfigured="_assignedCrns.Contains(course.Crn)" OnSelect="() => SelectCourse(course)" />
+    }
+    @if (!FilteredCourses.Any())
+    {
+      <p class="text-muted small">No courses match your search.</p>
+    }
+  </div>
+
+  @if (_selected is not null)
+  {
+    <div class="card mb-4" style="max-width:480px">
+      <div class="card-header py-2 d-flex justify-content-between align-items-center">
+        <strong>@_selected.SubjectCode @_selected.CourseNumber – @_selected.SectionNumber</strong>
+        <span class="text-muted small">@_selected.Name</span>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label small mb-1">Channel name (human readable)</label>
+          <input class="form-control form-control-sm font-monospace" @bind="_channelName" />
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small mb-1">Category (Graduating Class to group by)</label>
+          <select class="form-select form-select-sm" @bind="_selectedCategoryId">
+            @foreach (var category in _categories)
+            {
+              <option value="@category.Id">@(category.Name?.Value ?? category.Id.Value)</option>
+            }
+            <option value="__new__">+ New category…</option>
+          </select>
+          @if (_selectedCategoryId == "__new__")
+          {
+            <input class="form-control form-control-sm mt-2" placeholder="Category name" @bind="_newCategoryName" />
+          }
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label small mb-1">Student role (permission visibility)</label>
+          <select class="form-select form-select-sm" @bind="_selectedRoleId">
+            <option value="">— select a role —</option>
+            @foreach (var role in _roles)
+            {
+              <option value="@role.Id">@role.Name</option>
+            }
+          </select>
+        </div>
+
+        @if (_errorMessage is not null)
+        {
+          <div class="text-danger small mb-2">@_errorMessage</div>
+        }
+
+        <button class="btn btn-primary btn-sm" disabled="@_saving" @onclick="SetupChannelAsync">
+          @if (_saving)
+          {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+          }
+          Create Channel
+        </button>
+      </div>
+    </div>
+  }
+}
+
+@code {
+  [CascadingParameter] protected LoadingBoundaryContext? Loading { get; set; }
+  [Parameter] public EventCallback OnCancel { get; set; }
+
+  private List<SnowCourse> _courses = [];
+  private HashSet<SnowCrn> _assignedCrns = [];
+  private List<GuildChannel> _categories = [];
+  private List<GuildRole> _roles = [];
+  private List<(SnowTermCode TermCode, string DisplayName)> _availableTerms = [];
+  private SnowTermCode? _selectedTermCode;
+
+  private string _filter = "";
+  private SnowCourse? _selected;
+  private string _channelName = "";
+  private string _selectedCategoryId = "";
+  private string _newCategoryName = "";
+  private string _selectedRoleId = "";
+  private bool _saving;
+  private string? _errorMessage;
+
+  private IEnumerable<SnowCourse> FilteredCourses =>
+    _courses
+      .Where(c => _selectedTermCode is null || c.Term.Code == _selectedTermCode)
+      .Where(MatchesFilter)
+      .OrderBy(c => c.SubjectCode.Value).ThenBy(c => c.CourseNumber.Value)
+      .Take(string.IsNullOrWhiteSpace(_filter) ? 15 : int.MaxValue);
+
+  protected override async Task OnInitializedAsync()
+  {
+    DiscordService.DbDataChanged += HydrateDiscordAsync;
+    SnowCourseService.DataChanged += HydrateCoursesAsync;
+    using (Loading?.Start())
+    {
+      await Task.WhenAll(HydrateCoursesAsync(), HydrateDiscordAsync());
+    }
+  }
+
+  public void Dispose()
+  {
+    DiscordService.DbDataChanged -= HydrateDiscordAsync;
+    SnowCourseService.DataChanged -= HydrateCoursesAsync;
+  }
+
+  private async Task HydrateCoursesAsync()
+  {
+    var termOptions = SnowCourseService.GenerateUpcomingTermOptions().Take(2).ToList();
+    var courseTasks = termOptions.Select(t => Snow.GetCoursesForTermAsync(t.TermCode)).ToList();
+    var results = await Task.WhenAll(courseTasks);
+    _courses = [.. results.SelectMany(r => r)];
+    _availableTerms = termOptions.Where(t => _courses.Any(c => c.Term.Code == t.TermCode)).ToList();
+    _selectedTermCode ??= _availableTerms.FirstOrDefault().TermCode;
+    await InvokeAsync(StateHasChanged);
+  }
+
+  private async Task HydrateDiscordAsync()
+  {
+    var channelsTask = Discord.GetChannelsAsync();
+    var rolesTask = Discord.GetRolesAsync();
+    var assignmentsTask = Discord.GetCourseChannelAssignmentsAsync();
+    await Task.WhenAll(channelsTask, rolesTask, assignmentsTask);
+
+    _categories = [.. channelsTask.Result.Where(c => c.Type == 4).OrderBy(c => (int?)c.Position ?? int.MaxValue)];
+    _roles = [.. rolesTask.Result
+      .Where(r => !r.Managed && r.Name != "@everyone")
+      .OrderByDescending(r => r.Position)];
+    _assignedCrns = [.. assignmentsTask.Result.Select(a => a.Crn)];
+
+    if (_selectedCategoryId == "" && _categories.Count > 0)
+      _selectedCategoryId = _categories[0].Id.Value;
+
+    await InvokeAsync(StateHasChanged);
+  }
+
+  private void SelectCourse(SnowCourse course)
+  {
+    _selected = course;
+    _errorMessage = null;
+
+    var termCode = course.Term.Code.Value;
+    var year = termCode.Length >= 4 ? termCode[..4] : termCode;
+    var semesterSlug = termCode.Length >= 6 ? termCode[4..] switch
+    {
+      "10" => "spring",
+      "30" => "summer",
+      "40" => "fall",
+      var s => s,
+    } : "";
+
+    _channelName = $"{course.SubjectCode.Value.ToLower()}-{course.CourseNumber.Value}-{year}-{semesterSlug}";
+  }
+
+  private async Task SetupChannelAsync()
+  {
+    if (_selected is null)
+      return;
+
+    if (string.IsNullOrWhiteSpace(_channelName))
+    {
+      _errorMessage = "Channel name is required.";
+      return;
+    }
+
+    if (string.IsNullOrWhiteSpace(_selectedRoleId))
+    {
+      _errorMessage = "Please select a student role.";
+      return;
+    }
+
+    if (_selectedCategoryId == "__new__" && string.IsNullOrWhiteSpace(_newCategoryName))
+    {
+      _errorMessage = "Please enter a name for the new category.";
+      return;
+    }
+
+    _saving = true;
+    _errorMessage = null;
+
+    try
+    {
+      DiscordChannelId? existingCategoryId = _selectedCategoryId != "__new__" && !string.IsNullOrEmpty(_selectedCategoryId)
+        ? new DiscordChannelId(_selectedCategoryId)
+        : null;
+
+      await Discord.SetupCourseChannelAsync(
+        _selected.Crn,
+        _selected.Term.Code,
+        _channelName,
+        existingCategoryId,
+        _newCategoryName,
+        new DiscordRoleId(_selectedRoleId)
+      );
+
+      _selected = null;
+      _channelName = "";
+      _newCategoryName = "";
+    }
+    catch (Exception ex)
+    {
+      _errorMessage = $"Failed to create channel: {ex.Message}";
+    }
+    finally
+    {
+      _saving = false;
+    }
+  }
+
+  private bool MatchesFilter(SnowCourse course)
+  {
+    if (string.IsNullOrWhiteSpace(_filter))
+      return true;
+
+    var filter = _filter.Trim();
+    var primaryName = (course.Instructors.FirstOrDefault(i => i.PrimaryInstructor) ??
+course.Instructors.FirstOrDefault())?.Name ?? "";
+    var code = $"{course.SubjectCode.Value} {course.CourseNumber.Value}";
+
+    return course.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+      || primaryName.Contains(filter, StringComparison.OrdinalIgnoreCase)
+      || course.SubjectCode.Value.Contains(filter, StringComparison.OrdinalIgnoreCase)
+      || code.Contains(filter, StringComparison.OrdinalIgnoreCase);
+  }
+}

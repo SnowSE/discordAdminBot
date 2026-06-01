@@ -89,6 +89,42 @@ public class SnowCourseService(IHttpClientFactory httpClientFactory, SnowCourseD
     DataChanged?.Invoke();
   }
 
+  public async Task RefreshSectionStudentsAsync(
+    SnowTermCode termCode,
+    SnowCrn crn,
+    string jwtToken,
+    CancellationToken ct = default
+  )
+  {
+    var client = httpClientFactory.CreateClient("snow");
+
+    using var request = new HttpRequestMessage(
+      HttpMethod.Get,
+      $"faculty/section/students?term_code={termCode}&crn={crn}"
+    );
+    request.Headers.Add("Cookie", $"jwt={jwtToken}");
+
+    var response = await client.SendAsync(request, ct);
+    response.EnsureSuccessStatusCode();
+
+    var students =
+      (await response.Content.ReadFromJsonAsync<List<SnowSectionStudent>>(JsonOptions, ct))
+      ?? throw new InvalidOperationException(
+        $"my.snow.edu returned null student list for CRN '{crn}' term '{termCode}'"
+      );
+
+    await db.SaveSectionStudentsAsync(crn, termCode, students);
+    DataChanged?.Invoke();
+  }
+
+  public Task<List<SnowSectionStudent>> GetCachedSectionStudentsAsync(
+    SnowCrn crn,
+    SnowTermCode termCode
+  ) => db.GetSectionStudentsAsync(crn, termCode);
+
+  public Task<DateTime?> GetLastSyncTimeForSectionAsync(SnowCrn crn, SnowTermCode termCode) =>
+    db.GetLastSyncTimeForSectionAsync(crn, termCode);
+
   public Task<List<SnowTerm>> GetTermsAsync() => db.GetTermsAsync();
 
   public Task<List<SnowCourse>> GetCoursesForTermAsync(SnowTermCode termCode) =>

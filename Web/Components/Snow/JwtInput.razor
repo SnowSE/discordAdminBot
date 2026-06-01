@@ -1,0 +1,25 @@
+@using Web.Components.Shared
+
+<div>
+  <label class="form-label small mb-1">@Label</label>
+  <InputText @bind-Value="_token" class="form-control form-control-sm font-monospace" autocomplete="off"
+             spellcheck="false" />
+</div>
+
+@code {
+  [Parameter]
+  public string? Label { get; set; } = "JWT Token";
+
+  [Parameter]
+  public string? InitialValue { get; set; }
+
+  [Parameter]
+  public EventCallback<string> TokenChanged { get; set; }
+
+  private string _token = "";
+
+  protected override void OnInitialized()
+  {
+    _token = InitialValue ?? "";
+  }
+}

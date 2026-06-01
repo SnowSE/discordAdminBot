@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Web.Models;
+using Web.Models.Snow;
 
 namespace Web.Services;
 
@@ -270,5 +271,106 @@ public class DiscordDB(CacheDb cache)
       "INSERT INTO discord_shares (id, data, updated_at) VALUES (@id, @data, @updatedAt)",
       rows
     );
+  }
+
+  public async Task<List<CourseChannelAssignment>> GetCourseChannelAssignmentsAsync()
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    var rows = await conn.QueryAsync<(
+      string crn,
+      string termCode,
+      string channelId,
+      string roleId,
+      string createdAt
+    )>(
+      "SELECT crn, term_code, discord_channel_id, discord_role_id, created_at FROM course_channel_assignments"
+    );
+    return
+    [
+      .. rows.Select(r => new CourseChannelAssignment(
+        new SnowCrn(r.crn),
+        new SnowTermCode(r.termCode),
+        new DiscordChannelId(r.channelId),
+        new DiscordRoleId(r.roleId),
+        DateTime.Parse(r.createdAt, null, System.Globalization.DateTimeStyles.RoundtripKind)
+      )),
+    ];
+  }
+
+  public async Task SaveCourseChannelAssignmentAsync(CourseChannelAssignment assignment)
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    await conn.ExecuteAsync(
+      """
+      INSERT INTO course_channel_assignments (crn, term_code, discord_channel_id, discord_role_id)
+      VALUES (@crn, @termCode, @channelId, @roleId)
+      ON CONFLICT(crn) DO UPDATE SET
+        term_code = excluded.term_code,
+        discord_channel_id = excluded.discord_channel_id,
+        discord_role_id = excluded.discord_role_id
+      """,
+      new
+      {
+        crn = assignment.Crn.Value,
+        termCode = assignment.TermCode.Value,
+        channelId = assignment.DiscordChannelId.Value,
+        roleId = assignment.DiscordRoleId.Value,
+      }
+    );
+  }
+
+  public async Task SaveStudentDiscordMappingAsync(
+    SnowBadgerId badgerId,
+    DiscordUserId discordUserId
+  )
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    await conn.ExecuteAsync(
+      """
+      INSERT INTO student_discord_mapping (badger_id, discord_user_id)
+      VALUES (@badgerId, @discordUserId)
+      ON CONFLICT(badger_id) DO UPDATE SET discord_user_id = excluded.discord_user_id
+      """,
+      new { badgerId = badgerId.Value, discordUserId = discordUserId.Value }
+    );
+  }
+
+  public async Task DeleteStudentDiscordMappingAsync(SnowBadgerId badgerId)
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    await conn.ExecuteAsync(
+      "DELETE FROM student_discord_mapping WHERE badger_id = @badgerId",
+      new { badgerId = badgerId.Value }
+    );
+  }
+
+  public async Task<
+    List<(SnowBadgerId BadgerId, DiscordUserId DiscordUserId)>
+  > GetStudentDiscordMappingsAsync()
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    var rows = await conn.QueryAsync<(string badgerId, string discordUserId)>(
+      "SELECT badger_id, discord_user_id FROM student_discord_mapping ORDER BY badger_id"
+    );
+    return
+    [
+      .. rows.Select(r => (new SnowBadgerId(r.badgerId), new DiscordUserId(r.discordUserId))),
+    ];
+  }
+
+  public async Task<SnowBadgerId?> GetMappedBadgerIdAsync(DiscordUserId discordUserId)
+  {
+    using var conn = _cache.OpenConnection();
+    await conn.OpenAsync();
+    var badgerIdStr = await conn.QuerySingleOrDefaultAsync<string?>(
+      "SELECT badger_id FROM student_discord_mapping WHERE discord_user_id = @discordUserId",
+      new { discordUserId = discordUserId.Value }
+    );
+    return badgerIdStr is null ? null : new SnowBadgerId(badgerIdStr);
   }
 }

@@ -79,6 +79,39 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     response.EnsureSuccessStatusCode();
   }
 
+  public async Task<GuildChannel> CreateCategoryAsync(string name, CancellationToken ct = default)
+  {
+    var response = await _http.PostAsJsonAsync(
+      $"guilds/{_guildId}/channels",
+      new { name, type = 4 },
+      JsonOptions,
+      ct
+    );
+    response.EnsureSuccessStatusCode();
+    return (await response.Content.ReadFromJsonAsync<GuildChannel>(JsonOptions, ct))!;
+  }
+
+  public async Task<GuildChannel> CreateTextChannelAsync(
+    string name,
+    string parentId,
+    CancellationToken ct = default
+  )
+  {
+    var response = await _http.PostAsJsonAsync(
+      $"guilds/{_guildId}/channels",
+      new
+      {
+        name,
+        type = 0,
+        parent_id = parentId,
+      },
+      JsonOptions,
+      ct
+    );
+    response.EnsureSuccessStatusCode();
+    return (await response.Content.ReadFromJsonAsync<GuildChannel>(JsonOptions, ct))!;
+  }
+
   public async Task<GuildRole> CreateRoleAsync(
     string roleName,
     int color = 0,

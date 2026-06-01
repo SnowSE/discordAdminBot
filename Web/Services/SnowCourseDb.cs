@@ -93,4 +93,80 @@ public class SnowCourseDb(CacheDb cache)
       throw;
     }
   }
+
+  public async Task SaveSectionStudentsAsync(
+    SnowCrn crn,
+    SnowTermCode termCode,
+    List<SnowSectionStudent> students
+  )
+  {
+    using var conn = cache.OpenConnection();
+    await conn.OpenAsync();
+    using var tx = await conn.BeginTransactionAsync();
+    try
+    {
+      var now = DateTime.UtcNow.ToString("O");
+      await conn.ExecuteAsync(
+        "DELETE FROM snow_section_students WHERE crn = @crn AND term_code = @termCode",
+        new { crn, termCode },
+        transaction: tx
+      );
+
+      var studentRows = students
+        .Select(s => new
+        {
+          crn,
+          termCode,
+          data = JsonSerializer.Serialize(s, JsonOptions),
+          lastSyncedAt = now,
+        })
+        .ToList();
+
+      await conn.ExecuteAsync(
+        "INSERT INTO snow_section_students (crn, term_code, data, last_synced_at) VALUES (@crn, @termCode, @data, @lastSyncedAt)",
+        studentRows,
+        transaction: tx
+      );
+
+      await tx.CommitAsync();
+    }
+    catch
+    {
+      await tx.RollbackAsync();
+      throw;
+    }
+  }
+
+  public async Task<List<SnowSectionStudent>> GetSectionStudentsAsync(
+    SnowCrn crn,
+    SnowTermCode termCode
+  )
+  {
+    using var conn = cache.OpenConnection();
+    await conn.OpenAsync();
+    var rows = await conn.QueryAsync<string>(
+      "SELECT data FROM snow_section_students WHERE crn = @crn AND term_code = @termCode",
+      new { crn, termCode }
+    );
+    return rows.Select(json =>
+        JsonSerializer.Deserialize<SnowSectionStudent>(json, JsonOptions)
+        ?? throw new InvalidOperationException(
+          $"Deserialized null student for CRN '{crn}' term '{termCode}'"
+        )
+      )
+      .ToList();
+  }
+
+  public async Task<DateTime?> GetLastSyncTimeForSectionAsync(SnowCrn crn, SnowTermCode termCode)
+  {
+    using var conn = cache.OpenConnection();
+    await conn.OpenAsync();
+    var ts = await conn.QuerySingleOrDefaultAsync<string?>(
+      "SELECT MAX(last_synced_at) FROM snow_section_students WHERE crn = @crn AND term_code = @termCode",
+      new { crn, termCode }
+    );
+    return ts is null
+      ? null
+      : DateTime.Parse(ts, null, System.Globalization.DateTimeStyles.RoundtripKind);
+  }
 }

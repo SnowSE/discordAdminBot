@@ -1,8 +1,9 @@
 using Web.Models;
+using Web.Models.Snow;
 
 namespace Web.Services;
 
-public class DiscordService(DiscordAPI api, DiscordDB db)
+public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow)
 {
   public static event Func<Task>? DbDataChanged;
 
@@ -161,4 +162,101 @@ public class DiscordService(DiscordAPI api, DiscordDB db)
     await db.SaveMembersAsync(members);
     DbDataChanged?.Invoke();
   }
+
+  public Task<List<CourseChannelAssignment>> GetCourseChannelAssignmentsAsync() =>
+    db.GetCourseChannelAssignmentsAsync();
+
+  public async Task<CourseChannelAssignment> SetupCourseChannelAsync(
+    SnowCrn crn,
+    SnowTermCode termCode,
+    string channelName,
+    DiscordChannelId? existingCategoryId,
+    string? newCategoryName,
+    DiscordRoleId roleId,
+    CancellationToken ct = default
+  )
+  {
+    if (existingCategoryId is null && string.IsNullOrWhiteSpace(newCategoryName))
+      throw new ArgumentException(
+        $"Either an existing category ID or a new category name must be provided when setting up channel for CRN '{crn}'."
+      );
+
+    var categoryId = existingCategoryId;
+    if (categoryId is null)
+    {
+      if (string.IsNullOrWhiteSpace(newCategoryName))
+        throw new InvalidOperationException(
+          $"New category name was empty when attempting to create a category for CRN '{crn}'."
+        );
+      var newCategory = await api.CreateCategoryAsync(newCategoryName, ct);
+      categoryId = newCategory.Id;
+    }
+
+    var channel = await api.CreateTextChannelAsync(channelName, categoryId.Value, ct);
+
+    var assignment = new CourseChannelAssignment(
+      crn,
+      termCode,
+      channel.Id,
+      roleId,
+      DateTime.UtcNow
+    );
+    await db.SaveCourseChannelAssignmentAsync(assignment);
+
+    var freshChannels = await api.FetchChannelsAsync(ct);
+    await db.SaveChannelsAsync(freshChannels);
+
+    DbDataChanged?.Invoke();
+    return assignment;
+  }
+
+  public async Task SyncCourseChannelAsync(
+    SnowCrn crn,
+    SnowTermCode termCode,
+    string jwtToken,
+    CancellationToken ct = default
+  )
+  {
+    await snow.RefreshSectionStudentsAsync(termCode, crn, jwtToken, ct);
+
+    var assignments = await GetCourseChannelAssignmentsAsync();
+    var assignment = assignments.FirstOrDefault(a => a.Crn == crn);
+    if (assignment is null)
+      throw new InvalidOperationException(
+        $"No course-channel assignment found for CRN '{crn}' while syncing section students to Discord."
+      );
+
+    var cachedStudents = await snow.GetCachedSectionStudentsAsync(crn, termCode);
+    var members = await GetMembersAsync();
+    var mappings = await db.GetStudentDiscordMappingsAsync();
+
+    foreach (var student in cachedStudents)
+    {
+      var mapping = mappings.FirstOrDefault(m => m.BadgerId == student.BadgerId);
+      if (mapping == default((SnowBadgerId, DiscordUserId)))
+        continue;
+
+      var discordMember = members.FirstOrDefault(m => m.User?.Id == mapping.DiscordUserId);
+      if (discordMember is null)
+        continue;
+
+      await api.AddRoleToMemberAsync(
+        mapping.DiscordUserId.Value,
+        assignment.DiscordRoleId.Value,
+        ct
+      );
+    }
+
+    DbDataChanged?.Invoke();
+  }
+
+  public Task<
+    List<(SnowBadgerId BadgerId, DiscordUserId DiscordUserId)>
+  > GetStudentDiscordMappingsAsync() => db.GetStudentDiscordMappingsAsync();
+
+  public Task SaveStudentDiscordMappingAsync(SnowBadgerId badgerId, DiscordUserId discordUserId) =>
+    db.SaveStudentDiscordMappingAsync(badgerId, discordUserId);
+
+  public Task DeleteStudentDiscordMappingAsync(SnowBadgerId badgerId) =>
+    db.DeleteStudentDiscordMappingAsync(badgerId);
 }

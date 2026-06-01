@@ -1,0 +1,93 @@
+@using Web.Models
+@using Web.Models.Snow
+@using Web.Services
+@using Web.Components.Shared
+@inject DiscordService Discord
+@inject SnowCourseService Snow
+
+<div class="ms-5 mb-2">
+  @if (_loading)
+  {
+    <div class="text-muted small">
+      <span class="spinner-border spinner-border-sm me-1"></span>
+      Loading students...
+    </div>
+  }
+  else if (_students.Any())
+  {
+    <div class="small">
+      <div class="text-muted mb-1">Students (@_students.Count):</div>
+      @foreach (var student in _students.Where(s => s?.BadgerId != null).OrderBy(s => s.LastName ?? ""))
+      {
+        if (student.BadgerId == null) continue;
+
+        var mapping = _mappings.FirstOrDefault(m => m.BadgerId == student.BadgerId);
+        var isMapped = mapping != default((SnowBadgerId, DiscordUserId));
+        <div class="d-flex align-items-center gap-2 py-1">
+          <span>@(student.FirstName ?? "") @(student.LastName ?? "")</span>
+          <span class="text-muted font-monospace" style="font-size:.75rem">@student.BadgerId.Value</span>
+          @if (isMapped)
+          {
+            var discordMember = _members.FirstOrDefault(m => m.User?.Id == mapping.DiscordUserId);
+            <span class="badge bg-success" style="font-size:.65rem">
+              mapped → @(discordMember?.DisplayName ?? mapping.DiscordUserId.Value)
+            </span>
+          }
+          else
+          {
+            <span class="badge bg-secondary" style="font-size:.65rem">unmapped</span>
+          }
+        </div>
+      }
+    </div>
+  }
+  else
+  {
+    <div class="text-muted small">No students cached. Sync this course to load roster.</div>
+  }
+</div>
+
+@code {
+  [Parameter, EditorRequired]
+  public CourseChannelAssignment Assignment { get; set; } = null!;
+
+  private List<SnowSectionStudent> _students = [];
+  private List<(SnowBadgerId BadgerId, DiscordUserId DiscordUserId)> _mappings = [];
+  private List<GuildMember> _members = [];
+  private bool _loading = true;
+
+  protected override async Task OnInitializedAsync()
+  {
+    await LoadDataAsync();
+  }
+
+  private async Task LoadDataAsync()
+  {
+    _loading = true;
+    StateHasChanged();
+
+    try
+    {
+      var studentsTask = Snow.GetCachedSectionStudentsAsync(Assignment.Crn, Assignment.TermCode);
+      var mappingsTask = Discord.GetStudentDiscordMappingsAsync();
+      var membersTask = Discord.GetMembersAsync();
+      await Task.WhenAll(studentsTask, mappingsTask, membersTask);
+
+      _students = studentsTask.Result ?? [];
+      _mappings = mappingsTask.Result ?? [];
+      _members = membersTask.Result ?? [];
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"Error loading student data: {ex.Message}");
+      _students = [];
+      _mappings = [];
+      _members = [];
+    }
+    finally
+    {
+      _loading = false;
+      StateHasChanged();
+    }
+  }
+}

@@ -7,6 +7,11 @@ body {
   background-color: rgba(0, 0, 0, 0.04);
 }
 
+.hover-card:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+  border-color: #1b6ec2 !important;
+}
+
 a,
 .btn-link {
   color: #006bb7;

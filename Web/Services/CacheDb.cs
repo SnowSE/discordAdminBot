@@ -77,6 +77,27 @@ public class CacheDb
 
       DROP TABLE IF EXISTS snow_student_schedules;
       DROP TABLE IF EXISTS snow_student_classes;
+
+      CREATE TABLE IF NOT EXISTS course_channel_assignments (
+          crn                TEXT NOT NULL PRIMARY KEY,
+          term_code          TEXT NOT NULL,
+          discord_channel_id TEXT NOT NULL,
+          discord_role_id    TEXT NOT NULL,
+          created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS snow_section_students (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          crn             TEXT NOT NULL,
+          term_code       TEXT NOT NULL,
+          data            TEXT NOT NULL,
+          last_synced_at  TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS student_discord_mapping (
+          badger_id       TEXT NOT NULL PRIMARY KEY,
+          discord_user_id TEXT NOT NULL UNIQUE
+      );
       """
     );
   }

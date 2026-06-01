@@ -1,0 +1,283 @@
+@using Web.Models
+@using Web.Models.Snow
+@using Web.Services
+@using Web.Components.Shared
+@inject DiscordService Discord
+@inject SnowCourseService Snow
+
+<div class="">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <h3 class="mb-0">Channels</h3>
+    @if (_courseChannels.Any())
+    {
+      <button class="btn btn-sm btn-outline-primary" @onclick="OpenSyncAllModal">
+        Sync All Courses
+      </button>
+    }
+  </div>
+
+  @if (_showSyncModal)
+  {
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Sync All Course Channels</h5>
+            <button type="button" class="btn-close" @onclick="CloseSyncAllModal"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small mb-3">
+              Open <a href="https://my.snow.edu" target="_blank">my.snow.edu</a>, open DevTools console, paste and run:
+            </p>
+            <div class="position-relative mb-3">
+              <pre class="bg-dark text-light p-3 rounded small pe-5 mb-0"
+                   style="white-space: pre-wrap; word-break: break-all;">@_jwtSnippet</pre>
+            </div>
+            <EditForm Model="_syncModel" OnValidSubmit="SyncAllAsync">
+              <div class="mb-3">
+                <label class="form-label small mb-1">JWT Token</label>
+                <InputText @bind-Value="_syncModel.JwtToken" class="form-control form-control-sm font-monospace"
+                           autocomplete="off" spellcheck="false" />
+              </div>
+              @if (_syncError is not null)
+              {
+                <div class="alert alert-danger small py-2 mb-3">@_syncError</div>
+              }
+              <div class="d-flex gap-2 justify-content-end">
+                <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseSyncAllModal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm" disabled="@_syncing">
+                  @if (_syncing)
+                  {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                  }
+                  Sync @_courseChannels.Count Course@(_courseChannels.Count != 1 ? "s" : "")
+                </button>
+              </div>
+            </EditForm>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <div class="">
+    @foreach (var category in _categories)
+    {
+      var children = _channelsByCategory.GetValueOrDefault(category?.Id?.Value ?? "", []);
+      <div class="px-3 pt-2 pb-1">
+        <div class="text-muted small text-uppercase fw-semibold mb-1" style="letter-spacing:.05em">
+          @(category?.Name?.Value ?? "Uncategorized")
+        </div>
+        @foreach (var channel in children)
+        {
+          var courseInfo = _coursesByChannelId.GetValueOrDefault(channel.Id.Value);
+          var syncInfo = _syncStatusByChannelId.GetValueOrDefault(channel.Id.Value);
+          var assignment = _courseChannels.FirstOrDefault(a => a.DiscordChannelId == channel.Id);
+          var isExpanded = _expandedChannels.Contains(channel.Id.Value);
+          <div>
+            <div class="d-flex align-items-center gap-2 py-1 px-4"
+                 style="cursor: @(assignment is not null ? "pointer" : "default")"
+                 @onclick="() => { if (assignment is not null) ToggleChannel(channel.Id.Value); }">
+              @if (assignment is not null)
+              {
+                <span class="small">@(isExpanded ? "▼" : "▶")</span>
+              }
+              <span>#@(channel.Name?.Value ?? "unnamed")</span>
+              <span class="text-muted small">@channel.TypeName</span>
+              @if (courseInfo is not null)
+              {
+                <span class="badge bg-secondary" style="font-size:.7rem">@courseInfo</span>
+                @if (syncInfo is not null)
+                {
+                  <span class="badge bg-info text-dark" style="font-size:.65rem">@syncInfo</span>
+                }
+                else
+                {
+                  <span class="badge bg-warning text-dark" style="font-size:.65rem">unsynced</span>
+                }
+              }
+            </div>
+            @if (isExpanded && assignment is not null)
+            {
+              <StudentMappingForChannel Assignment="assignment" />
+            }
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>
+
+@code {
+  [CascadingParameter]
+  protected LoadingBoundaryContext? Loading { get; set; }
+
+  private List<GuildChannel?> _categories = [];
+  private Dictionary<string, List<GuildChannel>> _channelsByCategory = [];
+  private Dictionary<string, string> _coursesByChannelId = [];
+  private Dictionary<string, string> _syncStatusByChannelId = [];
+  private List<CourseChannelAssignment> _courseChannels = [];
+  private HashSet<string> _expandedChannels = [];
+  private bool _showSyncModal;
+  private bool _syncing;
+  private string? _syncError;
+  private readonly SyncModel _syncModel = new();
+
+  private const string _jwtSnippet =
+    "copy(\n" +
+    "  JSON.parse(\n" +
+    "    localStorage.getItem(\"oidc.user:https://kc.snow.edu/realms/snowcollege/:portal\")\n" +
+    "  ).access_token\n" +
+    ");\n" +
+    "console.log(\"Auth token copied to clipboard\");";
+
+  protected override async Task OnInitializedAsync()
+  {
+    DiscordService.DbDataChanged += HydrateAsync;
+    SnowCourseService.DataChanged += HydrateAsync;
+    using (Loading?.Start())
+    {
+      await HydrateAsync();
+    }
+  }
+
+  public void Dispose()
+  {
+    DiscordService.DbDataChanged -= HydrateAsync;
+    SnowCourseService.DataChanged -= HydrateAsync;
+  }
+
+  private async Task HydrateAsync()
+  {
+    using var _ = Loading?.Start();
+    var channelsTask = Discord.GetChannelsAsync();
+    var assignmentsTask = Discord.GetCourseChannelAssignmentsAsync();
+    var termsTask = Snow.GetTermsAsync();
+    await Task.WhenAll(channelsTask, assignmentsTask, termsTask);
+
+    var channels = channelsTask.Result;
+    var assignments = assignmentsTask.Result;
+    var terms = termsTask.Result;
+
+    _courseChannels = assignments;
+
+    var categoryChannels = channels
+      .Where(c => c.Type == 4)
+      .OrderBy(c => (int?)c.Position ?? int.MaxValue)
+      .ToList();
+
+    var nonCategoryChannels = channels
+      .Where(c => c.Type != 4)
+      .OrderBy(c => (int?)c.Position ?? int.MaxValue)
+      .ToList();
+
+    _channelsByCategory = nonCategoryChannels
+      .GroupBy(c => c.ParentId?.Value ?? "")
+      .ToDictionary(g => g.Key, g => g.ToList());
+
+    var usedCategoryIds = categoryChannels.Select(c => c.Id.Value).ToHashSet();
+    var hasUncategorized = _channelsByCategory.Keys.Any(k => k == "" || !usedCategoryIds.Contains(k));
+
+    _categories = [
+      .. categoryChannels.Cast<GuildChannel?>(),
+      .. (hasUncategorized ? [null] : Array.Empty<GuildChannel?>()),
+    ];
+
+    var courseTasks = assignments
+      .Select(async a => (a.DiscordChannelId.Value, Course: await GetCourseNameAsync(a.Crn, a.TermCode)))
+      .ToList();
+    var courseResults = await Task.WhenAll(courseTasks);
+    _coursesByChannelId = courseResults
+      .Where(r => r.Course is not null)
+      .ToDictionary(r => r.Item1, r => r.Course!);
+
+    var syncStatusTasks = assignments
+      .Select(async a => (a.DiscordChannelId.Value, Status: await GetSyncStatusAsync(a.Crn, a.TermCode)))
+      .ToList();
+    var syncStatusResults = await Task.WhenAll(syncStatusTasks);
+    _syncStatusByChannelId = syncStatusResults
+      .Where(r => r.Status is not null)
+      .ToDictionary(r => r.Item1, r => r.Status!);
+
+    await InvokeAsync(StateHasChanged);
+  }
+
+  private async Task<string?> GetCourseNameAsync(SnowCrn crn, SnowTermCode termCode)
+  {
+    var courses = await Snow.GetCoursesForTermAsync(termCode);
+    var course = courses.FirstOrDefault(c => c.Crn == crn);
+    return course is not null ? $"{course.SubjectCode.Value} {course.CourseNumber.Value} - {course.Name}" : null;
+  }
+
+  private async Task<string?> GetSyncStatusAsync(SnowCrn crn, SnowTermCode termCode)
+  {
+    var lastSync = await Snow.GetLastSyncTimeForSectionAsync(crn, termCode);
+    if (lastSync is null)
+      return null;
+
+    var elapsed = DateTime.UtcNow - lastSync.Value;
+    if (elapsed.TotalMinutes < 60)
+      return $"synced {(int)elapsed.TotalMinutes}m ago";
+    if (elapsed.TotalHours < 24)
+      return $"synced {(int)elapsed.TotalHours}h ago";
+    return $"synced {(int)elapsed.TotalDays}d ago";
+  }
+
+  private void OpenSyncAllModal()
+  {
+    _showSyncModal = true;
+    _syncError = null;
+  }
+
+  private void CloseSyncAllModal()
+  {
+    _showSyncModal = false;
+    _syncError = null;
+  }
+
+  private async Task SyncAllAsync()
+  {
+    if (string.IsNullOrWhiteSpace(_syncModel.JwtToken))
+    {
+      _syncError = "Enter JWT token before syncing.";
+      return;
+    }
+
+    _syncing = true;
+    _syncError = null;
+    StateHasChanged();
+
+    try
+    {
+      foreach (var assignment in _courseChannels)
+      {
+        await Discord.SyncCourseChannelAsync(assignment.Crn, assignment.TermCode, _syncModel.JwtToken.Trim());
+      }
+      await HydrateAsync();
+      CloseSyncAllModal();
+    }
+    catch (Exception ex)
+    {
+      _syncError = $"Sync failed: {ex.Message}";
+    }
+    finally
+    {
+      _syncing = false;
+      StateHasChanged();
+    }
+  }
+
+  private void ToggleChannel(string channelId)
+  {
+    if (_expandedChannels.Contains(channelId))
+      _expandedChannels.Remove(channelId);
+    else
+      _expandedChannels.Add(channelId);
+    StateHasChanged();
+  }
+
+  private sealed class SyncModel
+  {
+    public string? JwtToken { get; set; }
+  }
+}
