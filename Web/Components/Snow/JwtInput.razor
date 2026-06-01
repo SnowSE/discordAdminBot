@@ -15,14 +15,14 @@
 </script>
 
 <div class="mb-3">
-  <p class="text-muted small mb-2">
+  <p class="text-muted mb-2">
     <a href="https://my.snow.edu" target="_blank" @onclick:stopPropagation>Open my.snow.edu</a>, open DevTools console,
     paste and run:
   </p>
   <div class="position-relative mb-3">
-    <pre class="bg-dark text-light p-3 rounded small pe-5 mb-0"
+    <pre class="bg-dark text-light p-3 rounded pe-5 mb-0"
          style="white-space: pre-wrap; word-break: break-all;">@SnippetText</pre>
-    <button type="button" class="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2"
+    <button type="button" class="btn btn-outline-secondary position-absolute top-0 end-0 m-2"
             @onclick="CopySnippetAsync">
       @(_copied ? "Copied!" : "Copy")
     </button>
@@ -33,9 +33,9 @@
   </div>
 
   <div>
-    <label class="form-label small mb-1">@Label</label>
-    <input type="text" value="@_token" @oninput="OnTokenInputChanged"
-           class="form-control form-control-sm font-monospace" autocomplete="off" spellcheck="false" />
+    <label class="form-label mb-1">@Label</label>
+    <input type="text" value="@_token" @oninput="OnTokenInputChanged" class="form-control font-monospace"
+           autocomplete="off" spellcheck="false" />
   </div>
 </div>
 
@@ -77,8 +77,8 @@
   {
     try
     {
-      await JS.InvokeVoidAsync("window.__snowAuth.openMySnow");
       await JS.InvokeVoidAsync("window.__snowAuth.copyToClipboard", SnippetText);
+      await JS.InvokeVoidAsync("window.__snowAuth.openMySnow");
     }
     catch (Exception ex) when (ex is not OperationCanceledException)
     {

@@ -9,15 +9,15 @@
     <DataAnnotationsValidator />
     <div class="d-flex flex-wrap gap-2 align-items-end">
       <div>
-        <label class="form-label small mb-1">Term</label>
-        <InputSelect class="form-select form-select-sm" @bind-Value="_model.TermCode">
+        <label class="form-label mb-1">Term</label>
+        <InputSelect class="form-select" @bind-Value="_model.TermCode">
           @foreach (var termOption in _termOptions)
           {
             <option value="@termOption.TermCode">@termOption.DisplayName</option>
           }
         </InputSelect>
       </div>
-      <button type="submit" class="btn btn-primary btn-sm" disabled="@_refreshing">
+      <button type="submit" class="btn btn-primary" disabled="@_refreshing">
         @if (_refreshing)
         {
           <span class="spinner-border spinner-border-sm me-1"></span>
@@ -27,7 +27,7 @@
     </div>
     @if (_errorMessage is not null)
     {
-      <div class="text-danger small mt-2">@_errorMessage</div>
+      <div class="text-danger mt-2">@_errorMessage</div>
     }
   </EditForm>
 </div>

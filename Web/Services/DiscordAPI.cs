@@ -79,6 +79,16 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     response.EnsureSuccessStatusCode();
   }
 
+  private const long ViewChannelBit = 1L << 10;
+  private const long SendMessagesBit = 1L << 11;
+  private const long AddReactionsBit = 1L << 6;
+  private const long EmbedLinksBit = 1L << 14;
+  private const long AttachFilesBit = 1L << 15;
+  private const long ReadMessageHistoryBit = 1L << 16;
+  private const long UseExternalEmojisBit = 1L << 18;
+  private const long CreatePublicThreadsBit = 1L << 35;
+  private const long SendMessagesInThreadsBit = 1L << 38;
+
   public async Task<GuildChannel> CreateCategoryAsync(string name, CancellationToken ct = default)
   {
     var response = await _http.PostAsJsonAsync(
@@ -91,12 +101,51 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     return (await response.Content.ReadFromJsonAsync<GuildChannel>(JsonOptions, ct))!;
   }
 
+  private List<object> BuildPermissionOverwrites(bool isPrivate, DiscordRoleId? roleId)
+  {
+    if (!isPrivate || roleId is null)
+      return [];
+
+    var studentPermissions =
+      ViewChannelBit
+      | SendMessagesBit
+      | ReadMessageHistoryBit
+      | AddReactionsBit
+      | EmbedLinksBit
+      | AttachFilesBit
+      | UseExternalEmojisBit
+      | CreatePublicThreadsBit
+      | SendMessagesInThreadsBit;
+
+    return new List<object>
+    {
+      new
+      {
+        id = _guildId,
+        type = PermissionOverwriteType.Role,
+        allow = 0L,
+        deny = ViewChannelBit,
+      },
+      new
+      {
+        id = roleId.Value,
+        type = PermissionOverwriteType.Role,
+        allow = studentPermissions,
+        deny = 0L,
+      },
+    };
+  }
+
   public async Task<GuildChannel> CreateTextChannelAsync(
     string name,
     string parentId,
+    bool isPrivate = true,
+    DiscordRoleId? roleId = null,
     CancellationToken ct = default
   )
   {
+    var permissionOverwrites = BuildPermissionOverwrites(isPrivate, roleId);
+
     var response = await _http.PostAsJsonAsync(
       $"guilds/{_guildId}/channels",
       new
@@ -104,6 +153,7 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
         name,
         type = 0,
         parent_id = parentId,
+        permission_overwrites = permissionOverwrites,
       },
       JsonOptions,
       ct

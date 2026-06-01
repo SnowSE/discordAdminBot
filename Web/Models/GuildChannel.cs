@@ -5,7 +5,8 @@ public record GuildChannel(
   ChannelName? Name,
   ChannelType Type,
   ChannelPosition? Position,
-  DiscordChannelId? ParentId
+  DiscordChannelId? ParentId,
+  List<GuildChannelPermissionOverwrite> PermissionOverwrites
 )
 {
   public string TypeName => Type.TypeName;

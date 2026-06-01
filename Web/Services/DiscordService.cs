@@ -194,6 +194,7 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
     DiscordChannelId? existingCategoryId,
     string? newCategoryName,
     DiscordRoleId roleId,
+    bool isPrivate = true,
     CancellationToken ct = default
   )
   {
@@ -213,7 +214,13 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
       categoryId = newCategory.Id;
     }
 
-    var channel = await api.CreateTextChannelAsync(channelName, categoryId.Value, ct);
+    var channel = await api.CreateTextChannelAsync(
+      channelName,
+      categoryId.Value,
+      isPrivate,
+      roleId,
+      ct
+    );
 
     var freshChannels = await api.FetchChannelsAsync(ct);
     await db.SaveChannelsAsync(freshChannels);

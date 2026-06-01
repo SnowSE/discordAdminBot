@@ -33,3 +33,7 @@ do not use useless comments and xml comments.
 
 never use string interpolation in sql statements such as $"INSERT INTO {tableName} ({insertColumns}) VALUES (@id, @data, @updatedAt)" only every use parameterized sql.
 - sql functions should not be generalized, each time we cross the db boundary we should have proper and purpose built sql for the interaction.
+
+ask clarifying questions when additional decisions need to be made.
+
+

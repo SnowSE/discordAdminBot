@@ -23,7 +23,7 @@
         var mapping = Mappings.FirstOrDefault(m => m.BadgerId == student.BadgerId);
         var isMapped = mapping != default((SnowBadgerId, DiscordUserId));
         <div class="mb-1 border rounded @(isMapped ? "border-success-subtle" : "border-secondary-subtle")"
-             style="max-width:420px">
+             style="max-width:600px">
           <div class="p-2">
             <div class="d-flex align-items-center justify-content-between">
               <div>
@@ -37,22 +37,22 @@
                   if (_confirmingUnassignBadgerId == student.BadgerId.Value)
                   {
                     <div class="d-flex flex-column align-items-start">
-                      <small class="text-danger fw-semibold mb-1">Are you sure?</small>
-                      <button class="btn btn-sm btn-danger" @onclick="() => ConfirmUnassignStudentAsync(mapping.BadgerId)">Yes,
+                      <span class="text-danger fw-semibold mb-1">Are you sure?</span>
+                      <button class="btn btn-danger" @onclick="() => ConfirmUnassignStudentAsync(mapping.BadgerId)">Yes,
                         unassign</button>
-                        <button class="btn btn-sm btn-light" @onclick="() => CancelUnassign()">Cancel</button>
+                        <button class="btn btn-light" @onclick="() => CancelUnassign()">Cancel</button>
                       </div>
                     }
                   else
                     {
-                      <button class="btn btn-sm btn-outline-danger"
+                      <button class="btn btn-outline-danger"
                               @onclick="() => RequestUnassignStudentAsync(student.BadgerId.Value)">Unassign</button>
                     }
                   }
                   else
                   {
-                    <button class="btn btn-sm btn-outline-primary"
-                            @onclick="() => ToggleAssignPanel(student.BadgerId.Value)">Assign</button>
+                    <button class="btn btn-outline-primary"
+                            @onclick="() => ToggleAssignPanel(student.BadgerId.Value)">Assign to Discord User</button>
                   }
                 </div>
               </div>
@@ -75,6 +75,31 @@
                   @if (discordMember is not null)
                   {
                     var memberRoleIds = discordMember.Roles.Select(r => r.Value).ToHashSet();
+                    var hasRequiredRole = memberRoleIds.Contains(Assignment.DiscordRoleId.Value);
+                    var requiredRole = Roles.FirstOrDefault(r => r.Id == Assignment.DiscordRoleId);
+
+                    <div class="d-flex align-items-center gap-2 mt-1">
+                      @if (hasRequiredRole)
+                      {
+                        <span class="badge bg-success">✓ Has Role</span>
+                      }
+                      else
+                      {
+                        <span class="badge bg-warning text-dark">⚠ Missing Role</span>
+                        @if (requiredRole is not null)
+                        {
+                          <button class="btn btn-outline-primary py-0 px-2" disabled="@_assigningRole"
+                                  @onclick="() => AssignRoleToMemberAsync(mapping.DiscordUserId, Assignment.DiscordRoleId)">
+                            @if (_assigningRole)
+                            {
+                              <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            Add @requiredRole.Name.Value
+                          </button>
+                        }
+                      }
+                    </div>
+
                     var memberRoles = Roles.Where(r => memberRoleIds.Contains(r.Id.Value))
                       .OrderBy(r => r.Position)
                       .ToList();
@@ -103,9 +128,9 @@
           @if (_assigningBadgerId == student.BadgerId.Value)
           {
             <div class="ms-3 mt-1 mb-2 border rounded p-2 bg-body-tertiary" style="max-width:360px">
-              <label class="form-label form-label-sm">Assign to Discord User</label>
-              <input type="text" class="form-control form-control-sm mb-2" placeholder="Search by name or id..."
-                     value="@_assignSearchText" @oninput="OnAssignSearchInput" />
+              <label class="form-label">Assign to Discord User</label>
+              <input type="text" class="form-control mb-2" placeholder="Search by name or id..." value="@_assignSearchText"
+                     @oninput="OnAssignSearchInput" />
               <div class="assign-member-list">
                 @if (_filteredUnassignedMembers.Any())
                 {
@@ -163,8 +188,9 @@
   private List<GuildMember> _filteredUnassignedMembers = [];
 
   private string? _confirmingUnassignBadgerId;
+  private bool _assigningRole;
 
-  protected override async Task OnInitializedAsync()
+  protected override void OnInitialized()
   {
     UpdateFilteredUnassignedMembers();
   }
@@ -266,5 +292,26 @@
     await Discord.DeleteStudentDiscordMappingAsync(badgerId);
     _confirmingUnassignBadgerId = null;
     await OnMappingChanged.InvokeAsync();
+  }
+
+  private async Task AssignRoleToMemberAsync(DiscordUserId userId, DiscordRoleId roleId)
+  {
+    _assigningRole = true;
+    StateHasChanged();
+
+    try
+    {
+      await Discord.AddRoleToMemberAsync(userId.Value, roleId.Value);
+      await OnMappingChanged.InvokeAsync();
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"Failed to assign role to member: {ex.Message}");
+    }
+    finally
+    {
+      _assigningRole = false;
+      StateHasChanged();
+    }
   }
 }

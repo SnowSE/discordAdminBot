@@ -11,7 +11,7 @@
     <h3 class="mb-0">Channels</h3>
     @if (_courseChannels.Any())
     {
-      <button class="btn btn-sm btn-outline-primary" @onclick="OpenSyncAllModal">
+      <button class="btn btn-outline-primary" @onclick="OpenSyncAllModal">
         Sync All Courses
       </button>
     }
@@ -30,11 +30,11 @@
             <JwtInput @bind-Token="_syncModel.JwtToken" />
             @if (_syncError is not null)
             {
-              <div class="alert alert-danger small py-2 mb-3">@_syncError</div>
+              <div class="alert alert-danger py-2 mb-3">@_syncError</div>
             }
             <div class="d-flex gap-2 justify-content-end">
-              <button type="button" class="btn btn-secondary btn-sm" @onclick="CloseSyncAllModal">Cancel</button>
-              <button type="button" class="btn btn-primary btn-sm" disabled="@_syncing" @onclick="SyncAllAsync">
+              <button type="button" class="btn btn-secondary" @onclick="CloseSyncAllModal">Cancel</button>
+              <button type="button" class="btn btn-primary" disabled="@_syncing" @onclick="SyncAllAsync">
                 @if (_syncing)
                 {
                   <span class="spinner-border spinner-border-sm me-1"></span>
@@ -53,7 +53,7 @@
     {
       var children = _channelsByCategory.GetValueOrDefault(category?.Id?.Value ?? "", []);
       <div class="px-3 pt-2 pb-1">
-        <div class="text-muted small text-uppercase fw-semibold mb-1" style="letter-spacing:.05em">
+        <div class="text-muted text-uppercase fw-semibold mb-1" style="letter-spacing:.05em">
           @(category?.Name?.Value ?? "Uncategorized")
         </div>
         @foreach (var channel in children)
@@ -62,47 +62,91 @@
           var syncInfo = _syncStatusByChannelId.GetValueOrDefault(channel.Id.Value);
           var assignment = _courseChannels.FirstOrDefault(a => a.DiscordChannelId == channel.Id);
           var isExpanded = _expandedChannels.Contains(channel.Id.Value);
+          var roleOverwrites = GetRoleOverwrites(channel);
           <div>
             <div class="d-flex align-items-center gap-2 py-1 px-4"
                  style="cursor: @(assignment is not null ? "pointer" : "default")"
                  @onclick="() => { if (assignment is not null) ToggleChannel(channel.Id.Value); }">
               @if (assignment is not null)
               {
-                <span class="small">@(isExpanded ? "▼" : "▶")</span>
+                <span>@(isExpanded ? "▼" : "▶")</span>
               }
               <span>#@(channel.Name?.Value ?? "unnamed")</span>
-              <span class="text-muted small">@channel.TypeName</span>
+              <span class="text-muted">@channel.TypeName</span>
+              @if (roleOverwrites.Any())
+              {
+                <span title="Private channel - requires role access">🔒</span>
+                @foreach (var overwriteRoleName in roleOverwrites)
+                {
+                  <span class="badge text-bg-secondary">@overwriteRoleName</span>
+                }
+              }
+              else
+              {
+                <span class="text-muted" title="Visible to everyone">🌐</span>
+              }
               @if (courseInfo is not null)
               {
-                <span class="badge bg-secondary" style="font-size:.7rem">@courseInfo</span>
+                <span class="badge bg-secondary">@courseInfo</span>
                 @if (syncInfo is not null)
                 {
-                  <span class="badge bg-info text-dark" style="font-size:.65rem">@syncInfo</span>
+                  <span class="badge bg-info text-dark">@syncInfo</span>
                 }
                 else
                 {
-                  <span class="badge bg-warning text-dark" style="font-size:.65rem">unsynced</span>
+                  <span class="badge bg-warning text-dark">unsynced</span>
                 }
               }
             </div>
             @if (isExpanded && assignment is not null)
             {
               <div class="ms-5 me-3">
+                @{
+                  var permissionDetails = GetPermissionDetails(channel);
+                  if (permissionDetails.Any())
+                  {
+                    <div class="mb-3 p-2 bg-light rounded">
+                      <div class="fw-semibold mb-2">Channel Access Permissions:</div>
+                      @foreach (var detail in permissionDetails)
+                      {
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                          @if (detail.CanView)
+                          {
+                            <span class="badge bg-success" style="min-width:50px">✓ Allow</span>
+                          }
+                          else
+                          {
+                            <span class="badge bg-danger" style="min-width:50px">✗ Deny</span>
+                          }
+                          <span class="fw-semibold">@detail.RoleName</span>
+                          @if (detail.CanView)
+                          {
+                            <span class="text-muted">— can see and interact in this channel</span>
+                          }
+                          else
+                          {
+                            <span class="text-muted">— cannot see this channel</span>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                }
                 <StudentMappingForChannel Assignment="assignment" Mappings="_mappings" Members="_members" Roles="_roles"
                                           OnMappingChanged="ReloadMappingsAsync" />
 
                 <div class="mb-2">
-                  <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteChannelConfirmation(assignment)">
+                  <button class="btn btn-outline-danger" @onclick="() => DeleteChannelConfirmation(assignment)">
                     Delete Channel
                   </button>
                   @if (_channelToDelete == assignment)
                   {
-                    <div class="mt-2 small text-warning">
+                    <div class="mt-2">
                       This will permanently delete the Discord channel and remove the course assignment. Continue?
-                      <button class="btn btn-sm btn-danger ms-2" @onclick="() => DeleteChannelAsync(assignment)">
+                      <button class="btn btn-danger ms-2" @onclick="() => DeleteChannelAsync(assignment)">
                         Yes, delete
                       </button>
-                      <button class="btn btn-sm btn-outline-secondary ms-1" @onclick="CancelDelete">
+                      <button class="btn btn-outline-secondary ms-1" @onclick="CancelDelete">
                         Cancel
                       </button>
                     </div>
@@ -240,6 +284,50 @@ a.TermCode)))))
       .Where(r => r.Status is not null)
       .ToDictionary(r => r.Item1, r => r.Status!);
   }
+
+  private List<string> GetRoleOverwrites(GuildChannel channel)
+  {
+    if (channel.PermissionOverwrites == null || !channel.PermissionOverwrites.Any())
+      return [];
+
+    var roleIds = channel.PermissionOverwrites
+      .Where(p => p.Type == PermissionOverwriteType.Role)
+      .Select(p => p.Id)
+      .ToHashSet();
+
+    return _roles.Where(r => roleIds.Contains(r.Id.Value))
+      .OrderBy(r => r.Position)
+      .Select(r => r.Name.Value)
+      .ToList();
+  }
+
+  private List<PermissionDetail> GetPermissionDetails(GuildChannel channel)
+  {
+    if (channel.PermissionOverwrites == null || !channel.PermissionOverwrites.Any())
+      return [];
+
+    const long viewChannelBit = 1L << 10;
+
+    var roleOverwrites = channel.PermissionOverwrites
+          .Where(p => p.Type == PermissionOverwriteType.Role)
+          .ToList();
+
+    var details = new List<PermissionDetail>();
+
+    foreach (var overwrite in roleOverwrites)
+    {
+      var role = _roles.FirstOrDefault(r => r.Id.Value == overwrite.Id);
+      if (role is null)
+        continue;
+
+      var canView = (overwrite.Deny & viewChannelBit) == 0;
+      details.Add(new PermissionDetail(role.Name.Value, canView));
+    }
+
+    return details.OrderByDescending(d => d.CanView).ThenBy(d => d.RoleName).ToList();
+  }
+
+  private record PermissionDetail(string RoleName, bool CanView);
 
 
   private void OpenSyncAllModal()
