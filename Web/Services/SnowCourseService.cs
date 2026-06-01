@@ -1,0 +1,144 @@
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Web.Models;
+using Web.Models.Snow;
+
+namespace Web.Services;
+
+public class SnowCourseService(IHttpClientFactory httpClientFactory, SnowCourseDb db)
+{
+  public static event Func<Task>? DataChanged;
+
+  private static readonly JsonSerializerOptions JsonOptions = new()
+  {
+    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+    NumberHandling = JsonNumberHandling.AllowReadingFromString,
+  };
+
+  private static readonly string[] AllDepartmentCodes =
+  [
+    "AD",
+    "BSCI",
+    "BIOL",
+    "BUS",
+    "CHEM",
+    "COMM",
+    "ENCS",
+    "CM",
+    "CED",
+    "DANC",
+    "EDFS",
+    "ENPH",
+    "EXSC",
+    "GEOL",
+    "AHNA",
+    "HONR",
+    "INDM",
+    "ITEC",
+    "LALI",
+    "MATH",
+    "MUSC",
+    "NR",
+    "NURS",
+    "PHSX",
+    "STEC",
+    "SS",
+    "THEA",
+    "TRAN",
+    "ART",
+  ];
+
+  public async Task RefreshCoursesAsync(
+    SnowTermCode termCode,
+    string jwtToken,
+    CancellationToken ct = default
+  )
+  {
+    var client = httpClientFactory.CreateClient("snow");
+
+    var requestBody = new
+    {
+      division_codes = Array.Empty<string>(),
+      department_codes = AllDepartmentCodes,
+      subject_codes = Array.Empty<string>(),
+      instructor_codes = Array.Empty<string>(),
+    };
+
+    using var request = new HttpRequestMessage(HttpMethod.Post, $"faculty/sections/{termCode}");
+    request.Headers.Add("Cookie", $"jwt={jwtToken}");
+    request.Content = new StringContent(
+      JsonSerializer.Serialize(requestBody, JsonOptions),
+      Encoding.UTF8,
+      "application/json"
+    );
+
+    var response = await client.SendAsync(request, ct);
+    response.EnsureSuccessStatusCode();
+
+    var responseJson = await response.Content.ReadAsStringAsync(ct);
+    var courses =
+      JsonSerializer.Deserialize<List<SnowCourse>>(responseJson, JsonOptions)
+      ?? throw new InvalidOperationException(
+        $"my.snow.edu returned null course list for term '{termCode}'"
+      );
+
+    var termName = BuildTermDisplayName(termCode);
+    await db.SaveCoursesAsync(termCode, termName, courses);
+    DataChanged?.Invoke();
+  }
+
+  public Task<List<SnowTerm>> GetTermsAsync() => db.GetTermsAsync();
+
+  public Task<List<SnowCourse>> GetCoursesForTermAsync(SnowTermCode termCode) =>
+    db.GetCoursesForTermAsync(termCode);
+
+  public static string BuildTermDisplayName(SnowTermCode termCode)
+  {
+    if (termCode.Value.Length < 6)
+      throw new ArgumentException(
+        $"Term code '{termCode}' is too short to parse into year/semester."
+      );
+
+    var year = termCode.Value[..4];
+    var semesterCode = termCode.Value[4..];
+    var semesterName = semesterCode switch
+    {
+      "10" => "Spring",
+      "30" => "Summer",
+      "40" => "Fall",
+      _ => throw new ArgumentException(
+        $"Unrecognised semester code '{semesterCode}' in term '{termCode}'"
+      ),
+    };
+    return $"{semesterName} {year}";
+  }
+
+  public static List<(SnowTermCode TermCode, string DisplayName)> GenerateUpcomingTermOptions()
+  {
+    var now = DateTime.UtcNow;
+    int year = now.Year;
+    int semesterCode = now.Month switch
+    {
+      >= 1 and <= 5 => 10,
+      >= 6 and <= 8 => 30,
+      _ => 40,
+    };
+
+    var terms = new List<(SnowTermCode TermCode, string DisplayName)>();
+    for (int i = 0; i < 4; i++)
+    {
+      SnowTermCode code = $"{year}{semesterCode:D2}";
+      terms.Add((code, BuildTermDisplayName(code)));
+
+      (semesterCode, year) = semesterCode switch
+      {
+        10 => (30, year),
+        30 => (40, year),
+        _ => (10, year + 1),
+      };
+    }
+    return terms;
+  }
+}

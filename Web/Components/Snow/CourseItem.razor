@@ -1,0 +1,17 @@
+@using Web.Models.Snow
+
+<div class="d-flex align-items-baseline gap-3 px-2 py-1 rounded hover-row">
+  <span class="font-monospace text-nowrap text-muted" style="min-width:9rem">
+    @Course.SubjectCode @Course.CourseNumber – @Course.SectionNumber
+  </span>
+  <span class="flex-grow-1">@Course.Name</span>
+  <span class="text-muted text-nowrap small">@(_primaryInstructor?.Name ?? "—")</span>
+  <span class="text-nowrap small ms-auto">@Course.Enrollment.Enrolled / @Course.Enrollment.Max</span>
+</div>
+
+@code {
+  [Parameter, EditorRequired] public SnowCourse Course { get; set; } = default!;
+
+  private SnowInstructor? _primaryInstructor =>
+    Course.Instructors.FirstOrDefault(i => i.PrimaryInstructor) ?? Course.Instructors.FirstOrDefault();
+}

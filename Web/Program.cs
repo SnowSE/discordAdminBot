@@ -31,10 +31,20 @@ builder.Services.AddHttpClient(
   }
 );
 
+builder.Services.AddHttpClient(
+  "snow",
+  client =>
+  {
+    client.BaseAddress = new Uri("https://my.snow.edu/api/");
+  }
+);
+
 builder.Services.AddSingleton<CacheDb>();
 builder.Services.AddSingleton<DiscordDB>();
 builder.Services.AddSingleton<DiscordAPI>();
 builder.Services.AddSingleton<DiscordService>();
+builder.Services.AddSingleton<SnowCourseDb>();
+builder.Services.AddSingleton<SnowCourseService>();
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 

@@ -1,0 +1,148 @@
+@using Web.Components.Snow
+@using Web.Components.Shared
+@using Web.Models.Snow
+@using Web.Services
+@page "/courses"
+@rendermode InteractiveServer
+@inject SnowCourseService Snow
+
+<PageTitle>Snow Courses</PageTitle>
+
+<LoadingAndError>
+  <h1 class="mb-3">Snow Courses</h1>
+
+  <RefreshCourses />
+
+  <hr />
+
+  <h2 class="h5 mb-3">Cached Terms</h2>
+  @if (_terms.Count == 0)
+  {
+    <p class="text-muted">No courses cached yet. Use Refresh Courses above.</p>
+  }
+  else
+  {
+    <div class="d-flex flex-wrap gap-2 mb-4">
+      @foreach (var term in _terms)
+      {
+        <button class="btn @(term.TermCode == _selectedTermCode ? "btn-primary" : "btn-outline-secondary") btn-sm"
+                @onclick="() => SelectTermAsync(term.TermCode)">
+          @term.Name
+          <small class="ms-1 opacity-75">(@_courseCountsByTerm.GetValueOrDefault(term.TermCode, 0) sections)</small>
+        </button>
+      }
+    </div>
+
+    @if (_selectedCourses is not null)
+    {
+      
+        var visibleCourses = _selectedCourses
+            .Where(c => _activeDepartments.Count == 0 || _activeDepartments.Contains(c.SubjectCode.Value))
+            .OrderBy(c => c.SubjectCode.Value)
+            .ThenBy(c => c.CourseNumber.Value)
+            .ToList();
+        var availableDepartments = _selectedCourses
+          .Select(c => c.SubjectCode.Value)
+          .Distinct()
+          .Order()
+          .ToList();
+      
+      <input class="form-control mb-3" placeholder="Filter by name, professor, department, or code…"
+             @bind="_filterText" @bind:event="oninput" />
+
+      <div class="d-flex flex-wrap gap-1 mb-3">
+        @foreach (var dept in availableDepartments)
+        {
+          var isActive = _activeDepartments.Contains(dept);
+          <button class="btn btn-sm @(isActive ? "btn-secondary" : "btn-outline-secondary")"
+                  @onclick="() => ToggleDepartment(dept)">
+            @dept
+          </button>
+        }
+      </div>
+
+      <div class="d-flex flex-column gap-1">
+        @foreach (var course in VisibleCourses)
+        {
+          <CourseItem Course="course" />
+        }
+      </div>
+      }
+    }
+  </LoadingAndError>
+
+@code {
+  private List<SnowTerm> _terms = [];
+  private Dictionary<SnowTermCode, int> _courseCountsByTerm = [];
+  private SnowTermCode? _selectedTermCode;
+  private List<SnowCourse>? _selectedCourses;
+  private HashSet<string> _activeDepartments = ["SE", "CS", "ENGR"];
+  private string _filterText = "";
+
+  private List<SnowCourse> VisibleCourses => _selectedCourses is null ? [] :
+    [.. _selectedCourses
+      .Where(MatchesFilter)
+      .Where(c => _activeDepartments.Count == 0 || _activeDepartments.Contains(c.SubjectCode.Value))
+      .OrderBy(c => c.SubjectCode.Value)
+      .ThenBy(c => c.CourseNumber.Value)];
+
+  private List<string> AvailableDepartments => _selectedCourses is null ? [] :
+    [.. _selectedCourses.Select(c => c.SubjectCode.Value).Distinct().Order()];
+
+  private bool MatchesFilter(SnowCourse course)
+  {
+    if (string.IsNullOrWhiteSpace(_filterText))
+      return true;
+
+    var filter = _filterText.Trim();
+    var primaryName = (course.Instructors.FirstOrDefault(i => i.PrimaryInstructor) ?? course.Instructors.FirstOrDefault())?.Name ?? "";
+    var courseCode = $"{course.SubjectCode.Value} {course.CourseNumber.Value}";
+
+    return course.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+      || primaryName.Contains(filter, StringComparison.OrdinalIgnoreCase)
+      || course.SubjectCode.Value.Contains(filter, StringComparison.OrdinalIgnoreCase)
+      || courseCode.Contains(filter, StringComparison.OrdinalIgnoreCase);
+  }
+
+  protected override async Task OnInitializedAsync()
+  {
+    SnowCourseService.DataChanged += HydrateAsync;
+    await HydrateAsync();
+  }
+
+  public void Dispose()
+  {
+    SnowCourseService.DataChanged -= HydrateAsync;
+  }
+
+  private async Task HydrateAsync()
+  {
+    _terms = await Snow.GetTermsAsync();
+
+    var countTasks = _terms
+      .Select(async t => (t.TermCode, Count: (await Snow.GetCoursesForTermAsync(t.TermCode)).Count))
+      .ToList();
+    var counts = await Task.WhenAll(countTasks);
+    _courseCountsByTerm = counts.ToDictionary(c => c.TermCode, c => c.Count);
+
+    await InvokeAsync(StateHasChanged);
+  }
+
+  private async Task SelectTermAsync(SnowTermCode termCode)
+  {
+    if (_selectedTermCode == termCode)
+    {
+      _selectedTermCode = null;
+      _selectedCourses = null;
+      return;
+    }
+    _selectedTermCode = termCode;
+    _selectedCourses = await Snow.GetCoursesForTermAsync(termCode);
+  }
+
+  private void ToggleDepartment(string department)
+  {
+    if (!_activeDepartments.Remove(department))
+      _activeDepartments.Add(department);
+  }
+}

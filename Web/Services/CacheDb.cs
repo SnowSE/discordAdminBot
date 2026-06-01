@@ -62,6 +62,21 @@ public class CacheDb
       );
 
       DROP TABLE IF EXISTS discord_role_assignments;
+
+      CREATE TABLE IF NOT EXISTS snow_terms (
+          term_code  TEXT NOT NULL PRIMARY KEY,
+          name       TEXT NOT NULL,
+          updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS snow_courses (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          term_code  TEXT    NOT NULL REFERENCES snow_terms(term_code) ON DELETE CASCADE,
+          data       TEXT    NOT NULL
+      );
+
+      DROP TABLE IF EXISTS snow_student_schedules;
+      DROP TABLE IF EXISTS snow_student_classes;
       """
     );
   }
