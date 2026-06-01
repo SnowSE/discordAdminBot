@@ -2,20 +2,20 @@
 @using Web.Services
 @inject DiscordService Discord
 
-<form @onsubmit="SyncAsync" @onsubmit:preventDefault>
-  <button class="btn btn-outline-primary btn-sm" type="submit" disabled="@_syncing">
+<form @onsubmit="SyncAsync" @onsubmit:preventDefault class="d-flex flex-column  gap-2">
+  <button class="btn btn-outline-secondary btn-sm" type="submit" disabled="@_syncing">
     @if (_syncing)
     {
       <span class="spinner-border spinner-border-sm me-1"></span>
     }
     Sync Discord Data
   </button>
+  @if (_lastSynced is not null)
+  {
+    <small class="text-muted">Last synced: @_lastSynced.Value.ToLocalTime().ToString("g")</small>
+  }
 </form>
 
-@if (_lastSynced is not null)
-{
-  <small class="text-muted">Last synced: @_lastSynced.Value.ToLocalTime().ToString("g")</small>
-}
 
 @code {
   [CascadingParameter]

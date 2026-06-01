@@ -1,8 +1,10 @@
+@using Microsoft.JSInterop
 @using Web.Models
 @using Web.Models.Snow
 @using Web.Services
 @inject DiscordService Discord
 @inject SnowCourseService Snow
+@rendermode InteractiveServer
 
 @if (_courses.Count == 0)
 {
@@ -25,8 +27,9 @@ else
       }
     </div>
   </div>
-  <input class="form-control mb-3" placeholder="Search by name, code, or instructor…" @bind="_filter"
-         @bind:event="oninput" />
+  <label class="form-label mb-1" for="add-course-search">Search by name, code, or instructor</label>
+  <input id="add-course-search" autofocus class="form-control mb-3" placeholder="Search by name, code, or instructor…"
+         @bind="_filter" @bind:event="oninput" />
 
   <div class="d-flex flex-wrap gap-3 mb-4">
     @foreach (var course in FilteredCourses)
@@ -103,6 +106,7 @@ else
   private List<(SnowTermCode TermCode, string DisplayName)> _availableTerms = [];
   private SnowTermCode? _selectedTermCode;
 
+  private bool _hasFocusedSearch = false;
   private string _filter = "";
   private SnowCourse? _selected;
   private string _channelName = "";

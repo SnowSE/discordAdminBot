@@ -7,162 +7,152 @@
 <div class="ms-5 mb-2">
   @if (_loading)
   {
-    <div class="text-muted ">
+    <div class="text-muted">
       <span class="spinner-border spinner-border-sm me-1"></span>
       Loading students...
     </div>
   }
   else if (_students.Any())
   {
-    <div class="">
-      <div class="text-muted mb-1">Students (@_students.Count):</div>
-      @foreach (var student in _students.Where(s => s?.BadgerId != null).OrderBy(s => s.LastName ?? ""))
-      {
-        if (student.BadgerId == null) continue;
+    <div class="text-muted mb-2">students in the course (@_students.Count)</div>
+    @foreach (var student in _students.Where(s => s?.BadgerId != null).OrderBy(s => s.LastName ?? ""))
+    {
+      if (student.BadgerId == null) continue;
 
-        var mapping = Mappings.FirstOrDefault(m => m.BadgerId == student.BadgerId);
-        var isMapped = mapping != default((SnowBadgerId, DiscordUserId));
-        <div class="mb-1 border rounded @(isMapped ? "border-success-subtle" : "border-secondary-subtle")"
-             style="max-width:600px">
-          <div class="p-2">
-            <div class="d-flex align-items-center justify-content-between">
-              <div>
-                <span class="fw-semibold fs-6 ms-n1">@student.FirstName</span>
-                <span class="text-body fs-6 ms-n1">@student.LastName</span>
-                <span class="text-muted font-monospace ms-1">@student.BadgerId.Value</span>
-              </div>
-              <div class="d-flex align-items-center gap-2">
-                @if (isMapped)
-                {
-                  if (_confirmingUnassignBadgerId == student.BadgerId.Value)
-                  {
-                    <div class="d-flex flex-column align-items-start">
-                      <span class="text-danger fw-semibold mb-1">Are you sure?</span>
-                      <button class="btn btn-danger" @onclick="() => ConfirmUnassignStudentAsync(mapping.BadgerId)">Yes,
-                        unassign</button>
-                        <button class="btn btn-light" @onclick="() => CancelUnassign()">Cancel</button>
-                      </div>
-                    }
-                  else
-                    {
-                      <button class="btn btn-outline-danger"
-                              @onclick="() => RequestUnassignStudentAsync(student.BadgerId.Value)">Unassign</button>
-                    }
-                  }
-                  else
-                  {
-                    <button class="btn btn-outline-primary"
-                            @onclick="() => ToggleAssignPanel(student.BadgerId.Value)">Assign to Discord User</button>
-                  }
-                </div>
-              </div>
+      var mapping = Mappings.FirstOrDefault(m => m.BadgerId == student.BadgerId);
+      var isMapped = mapping != default((SnowBadgerId, DiscordUserId));
 
-              @if (isMapped)
+      <div class="mb-1 border-start rounded-start ps-2 py-1"
+           style="max-width:600px; border-color:@(isMapped ? "var(--bs-success-subtle-border)" : "var(--bs-secondary-subtle-border)")">
+        <!-- Student name + action -->
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <span class="fw-semibold">@student.FirstName @student.LastName</span>
+            <span class="text-muted font-monospace ms-1">@student.BadgerId.Value</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            @if (isMapped)
+            {
+              @if (_confirmingUnassignBadgerId == student.BadgerId.Value)
               {
-                var discordMember = Members.FirstOrDefault(m => m.User?.Id == mapping.DiscordUserId);
-                <div class="mt-2">
-                  <div class="text-body-secondary">
-                    @if (discordMember is not null)
+                <button class="btn btn-danger" @onclick="() => ConfirmUnassignStudentAsync(mapping.BadgerId)">Yes,
+                  unassign</button>
+                  <button class="btn btn-outline-secondary" @onclick="() => CancelUnassign()">Cancel</button>
+                }
+              else
+                {
+                  <button class="btn btn-outline-danger"
+                          @onclick="() => RequestUnassignStudentAsync(student.BadgerId.Value)">Unassign</button>
+                }
+              }
+              else
+              {
+                <button class="btn btn-outline-primary" @onclick="() => ToggleAssignPanel(student.BadgerId.Value)">Match to
+                  Discord User</button>
+                }
+              </div>
+            </div>
+
+            @if (isMapped && _confirmingUnassignBadgerId != student.BadgerId.Value)
+            {
+              var discordMember = Members.FirstOrDefault(m => m.User?.Id == mapping.DiscordUserId);
+              <div class="ms-2 mt-1">
+                @if (discordMember is not null)
+                {
+                  <span class="fw-semibold">@discordMember.DisplayName</span>
+                  <span class="text-muted ms-1">@discordMember.User?.Username.Value</span>
+
+                  var memberRoleIds = discordMember.Roles.Select(r => r.Value).ToHashSet();
+                  var hasRequiredRole = memberRoleIds.Contains(Assignment.DiscordRoleId.Value);
+                  var requiredRole = Roles.FirstOrDefault(r => r.Id == Assignment.DiscordRoleId);
+
+                  <div class="d-flex align-items-center gap-2 mt-1">
+                    @if (hasRequiredRole)
                     {
-                      <span class="fw-semibold">@discordMember.DisplayName</span>
-                      <span class="ms-1 text-muted">@discordMember.User?.Username.Value</span>
+                      <span class="badge bg-success">✓ Has Role</span>
                     }
                     else
                     {
-                      <span class="text-danger">Discord user not found</span>
+                      <span class="badge bg-warning text-dark">⚠ Missing Role</span>
+                      @if (requiredRole is not null)
+                      {
+                        <button class="btn btn-outline-primary py-0 px-2" disabled="@_assigningRole"
+                                @onclick="() => AssignRoleToMemberAsync(mapping.DiscordUserId, Assignment.DiscordRoleId)">
+                          @if (_assigningRole)
+                          {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                          }
+                          Add @requiredRole.Name.Value
+                        </button>
+                      }
                     }
                   </div>
-                  @if (discordMember is not null)
-                  {
-                    var memberRoleIds = discordMember.Roles.Select(r => r.Value).ToHashSet();
-                    var hasRequiredRole = memberRoleIds.Contains(Assignment.DiscordRoleId.Value);
-                    var requiredRole = Roles.FirstOrDefault(r => r.Id == Assignment.DiscordRoleId);
 
-                    <div class="d-flex align-items-center gap-2 mt-1">
-                      @if (hasRequiredRole)
+                  var memberRoles = Roles.Where(r => memberRoleIds.Contains(r.Id.Value))
+                    .OrderBy(r => r.Position)
+                    .ToList();
+
+                  @if (memberRoles.Any())
+                  {
+                    <div class="d-flex flex-wrap gap-1 mt-1">
+                      @foreach (var role in memberRoles)
                       {
-                        <span class="badge bg-success">✓ Has Role</span>
-                      }
-                      else
-                      {
-                        <span class="badge bg-warning text-dark">⚠ Missing Role</span>
-                        @if (requiredRole is not null)
-                        {
-                          <button class="btn btn-outline-primary py-0 px-2" disabled="@_assigningRole"
-                                  @onclick="() => AssignRoleToMemberAsync(mapping.DiscordUserId, Assignment.DiscordRoleId)">
-                            @if (_assigningRole)
-                            {
-                              <span class="spinner-border spinner-border-sm me-1"></span>
-                            }
-                            Add @requiredRole.Name.Value
-                          </button>
-                        }
+                        <span class="badge text-bg-secondary">
+                          @role.Name.Value
+                        </span>
                       }
                     </div>
-
-                    var memberRoles = Roles.Where(r => memberRoleIds.Contains(r.Id.Value))
-                      .OrderBy(r => r.Position)
-                      .ToList();
-
-                    @if (memberRoles.Any())
-                    {
-                      <div class="d-flex flex-wrap gap-1 mt-1">
-                        @foreach (var role in memberRoles)
-                        {
-                          <span class="badge text-bg-secondary">
-                            @role.Name.Value
-                          </span>
-                        }
-                      </div>
-                    }
-                    else
-                    {
-                      <span class="text-muted">no roles assigned on server</span>
-                    }
                   }
-                </div>
-              }
-            </div>
-          </div>
-
-          @if (_assigningBadgerId == student.BadgerId.Value)
-          {
-            <div class="ms-3 mt-1 mb-2 border rounded p-2 bg-body-tertiary" style="max-width:360px">
-              <label class="form-label">Assign to Discord User</label>
-              <input type="text" class="form-control mb-2" placeholder="Search by name or id..." value="@_assignSearchText"
-                     @oninput="OnAssignSearchInput" />
-              <div class="assign-member-list">
-                @if (_filteredUnassignedMembers.Any())
-                {
-                  foreach (var member in _filteredUnassignedMembers)
+                  else
                   {
-                    var discordUserId = member.User?.Id;
-                    if (discordUserId == null) continue;
-
-                    <div class="d-flex flex-column px-1 py-2 rounded assign-member-row"
-                         @onclick="() => AssignStudentAsync(student.BadgerId.Value, discordUserId.Value)">
-                      <span class="text-truncate">@member.DisplayName</span>
-                      <span class="text-muted ps-3">
-                        @member.User?.Username.Value @(member.Nick != null ? $"(nick: {member.Nick.Value})" : "")
-                      </span>
-                    </div>
+                    <span class="text-muted">no roles assigned on server</span>
                   }
                 }
                 else
                 {
-                  <div class="text-muted text-center py-3">No unassigned users found.</div>
+                  <span class="text-danger">Discord user not found</span>
                 }
               </div>
-            </div>
-          }
+            }
+
+            @if (_assigningBadgerId == student.BadgerId.Value)
+            {
+              <div class="ms-3 mt-1 mb-2 border rounded p-2 bg-body-tertiary" style="max-width:360px">
+                <label class="form-label mb-1">Assign to Discord User</label>
+                <input type="text" class="form-control mb-2" placeholder="Search by name or id..." value="@_assignSearchText"
+                       @oninput="OnAssignSearchInput" />
+                <div class="assign-member-list">
+                  @if (_filteredUnassignedMembers.Any())
+                  {
+                    foreach (var member in _filteredUnassignedMembers)
+                    {
+                      var discordUserId = member.User?.Id;
+                      if (discordUserId == null) continue;
+
+                      <div class="d-flex flex-column px-1 py-2 rounded assign-member-row"
+                           @onclick="() => AssignStudentAsync(student.BadgerId.Value, discordUserId.Value)">
+                        <span class="text-truncate">@member.DisplayName</span>
+                        <span class="text-muted ps-3">
+                          @member.User?.Username.Value @(member.Nick != null ? $"(nick: {member.Nick.Value})" : "")
+                        </span>
+                      </div>
+                    }
+                  }
+                  else
+                  {
+                    <div class="text-muted text-center py-3">No unassigned users found.</div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
         }
-      </div>
-    }
+      }
   else
-    {
-      <div class="text-muted ">No students cached. Sync this course to load roster.</div>
-    }
-  </div>
+      {
+        <div class="text-muted">No students cached. Sync this course to load roster.</div>
+      }
+    </div>
 
 @code {
   [Parameter, EditorRequired]

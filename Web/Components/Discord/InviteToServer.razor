@@ -1,12 +1,20 @@
+@using Microsoft.JSInterop
 @using Web.Models
 @using Web.Services
 @using Web.Components.Shared
 @inject DiscordService Discord
+@inject IJSRuntime JS
 @rendermode InteractiveServer
 
-<div class="d-flex align-items-baseline ">
-    <h5 class="mb-0">Server Invite (share this code with your class in a canvas assignment or something)</h5>
-  <div class="">
+<script>
+  window.copyInvite = function (text) {
+    return navigator.clipboard.writeText(text);
+  };
+</script>
+
+<div class="bg-body-secondary p-3 rounded border border-light mb-4">
+  <h5 class="mb-0">Server Invite (share this code with your class in a canvas assignment or something)</h5>
+  <div style="max-width: 48rem;">
     @if (_shares.Count > 0)
     {
       @foreach (var share in _shares)
@@ -15,7 +23,17 @@
         <div class="input-group mb-2">
           <span class="input-group-text">#@channelName</span>
           <input type="text" class="form-control" readonly value="@share.Url" />
-          <button type="button" class="btn btn-outline-danger" @onclick="() => DeleteShareAsync(share.Code)">Delete</button>
+          <button type="button" class="btn btn-outline-primary" @onclick="() => CopyInviteAsync(share)"
+                  title="Copy to clipboard">
+            @if (_copiedShareCodes.Contains(share.Code))
+            {
+              <span>Copied</span>
+            }
+            else
+            {
+              <span>Copy</span>
+            }
+          </button>
         </div>
       }
     }
@@ -53,6 +71,7 @@
 
   private List<GuildChannel> _channels = [];
   private List<DiscordInvite> _shares = [];
+  private HashSet<InviteCode> _copiedShareCodes = [];
   private string? _selectedChannelId;
   private bool _generating = false;
 
@@ -88,9 +107,11 @@
     _generating = false;
   }
 
-  private async Task DeleteShareAsync(InviteCode code)
+  private async Task CopyInviteAsync(DiscordInvite share)
   {
-    await Discord.DeleteShareAsync(code);
+    await JS.InvokeVoidAsync("window.copyInvite", share.Url);
+    _copiedShareCodes.Add(share.Code);
+    StateHasChanged();
   }
 
 }
