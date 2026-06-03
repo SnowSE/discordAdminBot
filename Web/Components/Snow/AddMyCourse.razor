@@ -6,96 +6,107 @@
 @inject SnowCourseService Snow
 @rendermode InteractiveServer
 
-@if (_courses.Count == 0)
-{
-  <div class="d-flex align-items-center gap-3 mb-3">
-    <button class="btn btn-outline-secondary btn-sm" @onclick="OnCancel">Cancel</button>
-  </div>
-  <p class="text-muted">No courses cached. Use the Courses page to refresh course data first.</p>
-}
-else
-{
-  <div class="d-flex align-items-center gap-3 mb-3">
+<div class="add-course-form p-2 rounded">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+
+    <h3>Adding Chat for Course</h3>
+
     <button class="btn btn-outline-secondary" @onclick="OnCancel">Cancel</button>
-    <div class="d-flex gap-2">
-      @foreach (var term in _availableTerms)
+  </div>
+  @if (_courses.Count == 0)
+  {
+    <p class="text-muted">No courses cached. Use the Courses page to refresh course data first.</p>
+  }
+  else
+  {
+
+    <label class="form-label mb-1" for="add-course-search">Search by name, code, or instructor</label>
+    <input id="add-course-search" autofocus class="form-control mb-3" placeholder="Search by name, code, or instructor…"
+           @bind="_filter" @bind:event="oninput" />
+    <div>
+      selected term
+    </div>
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <div class="d-flex gap-2">
+        @foreach (var term in _availableTerms)
+        {
+          <button class="btn @(_selectedTermCode == term.TermCode ? "btn-secondary" : "btn-outline-secondary")"
+                  @onclick="() => _selectedTermCode = term.TermCode">
+            @term.DisplayName
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-3 mb-4">
+      @foreach (var course in FilteredCourses)
       {
-        <button class="btn @(_selectedTermCode == term.TermCode ? "btn-secondary" : "btn-outline-secondary")"
-                @onclick="() => _selectedTermCode = term.TermCode">
-          @term.DisplayName
-        </button>
+        <CourseCard Course="course" IsConfigured="_assignedCrns.Contains(course.Crn)"
+                    OnSelect="() => SelectCourse(course)" />
+      }
+      @if (!FilteredCourses.Any())
+      {
+        <p class="text-muted">No courses match your search.</p>
       }
     </div>
-  </div>
-  <label class="form-label mb-1" for="add-course-search">Search by name, code, or instructor</label>
-  <input id="add-course-search" autofocus class="form-control mb-3" placeholder="Search by name, code, or instructor…"
-         @bind="_filter" @bind:event="oninput" />
 
-  <div class="d-flex flex-wrap gap-3 mb-4">
-    @foreach (var course in FilteredCourses)
+    @if (_selected is not null)
     {
-      <CourseCard Course="course" IsConfigured="_assignedCrns.Contains(course.Crn)" OnSelect="() => SelectCourse(course)" />
-    }
-    @if (!FilteredCourses.Any())
-    {
-      <p class="text-muted">No courses match your search.</p>
-    }
-  </div>
-
-  @if (_selected is not null)
-  {
-    <div class="card mb-4" style="max-width:480px">
-      <div class="card-header py-2 d-flex justify-content-between align-items-center">
-        <strong>@_selected.SubjectCode @_selected.CourseNumber – @_selected.SectionNumber</strong>
-        <span class="text-muted">@_selected.Name</span>
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <label class="form-label mb-1">Channel name (human readable)</label>
-          <input class="form-control font-monospace" @bind="_channelName" />
+      <div class="card mb-4" style="max-width:480px">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+          <strong>@_selected.SubjectCode @_selected.CourseNumber – @_selected.SectionNumber</strong>
+          <span class="text-muted">@_selected.Name</span>
         </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label mb-1">Channel name (human readable)</label>
+            <input class="form-control font-monospace" @bind="_channelName" />
+          </div>
 
-        <div class="mb-3">
-          <label class="form-label mb-1">Category (Graduating Class to group by)</label>
-          <ButtonGroup @bind-Value="_selectedCategoryId" Options="_categories" IdSelector="c => c.Id.Value"
-                       LabelSelector="c => c.Name?.Value ?? c.Id.Value" />
-          <button class="btn btn-outline-secondary mt-2" @onclick="() => _showNewCategory = true">
-            + New category…
+          <div class="mb-3">
+            <label class="form-label mb-1">Category (Graduating Class to group by)</label>
+            <ButtonGroup @bind-Value="_selectedCategoryId" Options="_categories" IdSelector="c => c.Id.Value"
+                         LabelSelector="c => c.Name?.Value ?? c.Id.Value" />
+            <button class="btn btn-outline-secondary mt-2" @onclick="() => _showNewCategory = true">
+              + New category…
+            </button>
+            @if (_showNewCategory)
+            {
+              <input class="form-control mt-2" placeholder="Category name" @bind="_newCategoryName" />
+            }
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label mb-1">Student role (permission visibility)</label>
+            <ButtonGroup @bind-Value="_selectedRoleId" Options="_roles" IdSelector="r => r.Id"
+                         LabelSelector="r => r.Name" />
+          </div>
+
+          <div class="mb-3 form-check">
+            <input type="checkbox" class="form-check-input" id="isPrivateCheckbox" @bind="_isPrivate" />
+            <label class="form-check-label" for="isPrivateCheckbox">
+              Private (@(_showNewCategory ? "category and channel" : "channel") will require role access)
+            </label>
+          </div>
+
+          @if (_errorMessage is not null)
+          {
+            <div class="text-danger mb-2">@_errorMessage</div>
+          }
+
+          <button class="btn btn-primary" disabled="@_saving" @onclick="SetupChannelAsync">
+            @if (_saving)
+            {
+              <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            Create Channel
           </button>
-          @if (_showNewCategory)
-          {
-            <input class="form-control mt-2" placeholder="Category name" @bind="_newCategoryName" />
-          }
         </div>
-
-        <div class="mb-3">
-          <label class="form-label mb-1">Student role (permission visibility)</label>
-          <ButtonGroup @bind-Value="_selectedRoleId" Options="_roles" IdSelector="r => r.Id" LabelSelector="r => r.Name" />
-        </div>
-
-        <div class="mb-3 form-check">
-          <input type="checkbox" class="form-check-input" id="isPrivateCheckbox" @bind="_isPrivate" />
-          <label class="form-check-label" for="isPrivateCheckbox">
-            Private (@(_showNewCategory ? "category and channel" : "channel") will require role access)
-          </label>
-        </div>
-
-        @if (_errorMessage is not null)
-        {
-          <div class="text-danger mb-2">@_errorMessage</div>
-        }
-
-        <button class="btn btn-primary" disabled="@_saving" @onclick="SetupChannelAsync">
-          @if (_saving)
-          {
-            <span class="spinner-border spinner-border-sm me-1"></span>
-          }
-          Create Channel
-        </button>
       </div>
-    </div>
+    }
   }
-}
+</div>
 
 @code {
   [CascadingParameter] protected LoadingBoundaryContext? Loading { get; set; }

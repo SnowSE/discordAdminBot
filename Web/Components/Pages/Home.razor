@@ -9,7 +9,7 @@
 
 <PageTitle>Discord Overview</PageTitle>
 <LoadingAndError>
-  <div class="page-header mb-4 pb-3 border-bottom">
+  <div class="page-header mb-4 p-2 pb-3 border-bottom">
     <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
       <h1 class="mb-0 me-auto">Discord Overview</h1>
       @if (!_addingCourse)
@@ -20,10 +20,7 @@
         </button>
       }
     </div>
-    <p class="text-muted mb-3" style="max-width: 800px">
-      Manage your Discord server channels and course assignments. Invite students to the server, sync course rosters,
-      and organize channels by course.
-    </p>
+
     <div class="d-flex flex-wrap gap-2">
       <SyncStatus />
       <button class="btn btn-outline-secondary" @onclick="() => _channelListRef?.OpenSyncAllModal()">
@@ -40,6 +37,7 @@
     </LoadingAndError>
   }
 
+  <br>
   <InviteToServer />
   <LoadingAndError>
     <ChannelList @ref="_channelListRef" />

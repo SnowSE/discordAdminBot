@@ -61,6 +61,14 @@
           {
             <GlobeIcon CssClass="text-muted" Title="Visible to everyone" />
           }
+          @if (!HasSharingVoiceChannel(children))
+          {
+            <button type="button" class="btn btn-sm btn-outline-secondary" style="font-size:0.75rem"
+                    @onclick="() => AddSharingVoiceChannelAsync(category.Id)" title="Add sharing voice channel">
+              <PlusIcon CssClass="me-1" Style="margin-top:-1px" />
+              Add Sharing Voice Channel
+            </button>
+          }
         }
       </div>
       @foreach (var channel in children)
@@ -74,7 +82,7 @@
           <div class="d-flex align-items-center gap-3 py-2 px-3 channel-row rounded" style="cursor: pointer"
                @onclick="() => ToggleChannel(channel.Id.Value)">
             <span style="font-size: 0.75rem; width: 12px; display: inline-block; text-align: center">@(isExpanded ? "▼" :
-                                                   "▶")</span>
+                                                                 "▶")</span>
               @if (roleOverwrites.Any())
               {
                 <LockIcon CssClass="text-secondary" Title="Private channel - requires role access" />
@@ -361,6 +369,26 @@ viewChannelBit) != 0);
       catch (Exception ex)
       {
         _syncError = $"Failed to delete channel: {ex.Message}";
+      }
+    }
+  }
+
+  private static bool HasSharingVoiceChannel(List<GuildChannel> channels)
+  {
+    return channels.Any(c => c.Type == 2 && c.Name?.Value.ToLower() == "sharing");
+  }
+
+  private async Task AddSharingVoiceChannelAsync(DiscordChannelId categoryId)
+  {
+    using (Loading?.Start())
+    {
+      try
+      {
+        await Discord.CreateSharingVoiceChannelAsync(categoryId);
+      }
+      catch (Exception ex)
+      {
+        _syncError = $"Failed to create sharing voice channel: {ex.Message}";
       }
     }
   }

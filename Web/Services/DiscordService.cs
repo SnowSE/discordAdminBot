@@ -164,6 +164,19 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
     DbDataChanged?.Invoke();
   }
 
+  public async Task CreateSharingVoiceChannelAsync(
+    DiscordChannelId categoryId,
+    CancellationToken ct = default
+  )
+  {
+    var channel = await api.CreateVoiceChannelAsync("sharing", categoryId.Value, ct);
+
+    var freshChannels = await api.FetchChannelsAsync(ct);
+    await db.SaveChannelsAsync(freshChannels);
+
+    DbDataChanged?.Invoke();
+  }
+
   public async Task DeleteCourseChannelAsync(SnowCrn crn, CancellationToken ct = default)
   {
     var assignments = await GetCourseChannelAssignmentsAsync();
