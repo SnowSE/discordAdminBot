@@ -194,7 +194,7 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
     DiscordChannelId? existingCategoryId,
     string? newCategoryName,
     DiscordRoleId roleId,
-    bool isPrivate = true,
+    bool isPrivate,
     CancellationToken ct = default
   )
   {
@@ -204,14 +204,24 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
       );
 
     var categoryId = existingCategoryId;
+    var categoryHasOverwrites = false;
+
     if (categoryId is null)
     {
       if (string.IsNullOrWhiteSpace(newCategoryName))
         throw new InvalidOperationException(
           $"New category name was empty when attempting to create a category for CRN '{crn}'."
         );
-      var newCategory = await api.CreateCategoryAsync(newCategoryName, ct);
+      var newCategory = await api.CreateCategoryAsync(newCategoryName, isPrivate, roleId, ct);
       categoryId = newCategory.Id;
+      categoryHasOverwrites = isPrivate;
+    }
+    else
+    {
+      var channels = await api.FetchChannelsAsync(ct);
+      var category = channels.FirstOrDefault(c => c.Id.Value == categoryId.Value);
+      categoryHasOverwrites =
+        category?.PermissionOverwrites != null && category.PermissionOverwrites.Any();
     }
 
     var channel = await api.CreateTextChannelAsync(
@@ -219,6 +229,7 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
       categoryId.Value,
       isPrivate,
       roleId,
+      categoryHasOverwrites,
       ct
     );
 

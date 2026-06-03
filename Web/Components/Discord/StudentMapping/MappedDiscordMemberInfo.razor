@@ -1,0 +1,108 @@
+@using Web.Models
+@using Web.Models.Snow
+@using Web.Services
+@inject DiscordService DiscordService
+
+<div class="card card-body ms-3 p-2">
+  <div class="d-flex justify-content-between align-items-start gap-3">
+    <div class=" d-flex align-items-center gap-1">
+      <span class="fw-semibold">@DiscordMember.DisplayName</span>
+      <span class="text-muted">@DiscordMember.User?.Username.Value</span>
+    </div>
+    <div class="text-muted">
+      discord user
+    </div>
+
+  </div>
+  <div class="d-flex align-items-center gap-2 mt-1">
+    @if (HasRequiredRole)
+    {
+      @if (RequiredRole is not null)
+      {
+        <span class="badge bg-success">✓ Has @(RequiredRole.Name.Value)</span>
+      }
+      else
+      {
+        <span class="badge bg-success">✓ Has Role</span>
+      }
+    }
+    else
+    {
+      <span class="badge bg-warning text-dark">⚠ Missing Role</span>
+
+      @if (RequiredRole is not null)
+      {
+        <button class="btn btn-outline-primary py-0 px-2" disabled="@IsAssigningRole" @onclick="AssignRoleAsync">
+          @if (IsAssigningRole)
+          {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+          }
+          Add @RequiredRole.Name.Value
+        </button>
+      }
+    }
+
+    @if (MemberRoles.Any())
+    {
+      @foreach (var role in MemberRoles)
+      {
+        <span class="badge text-bg-secondary">@role.Name.Value</span>
+      }
+    }
+    else
+    {
+      <span class="text-muted">no roles assigned on server</span>
+    }
+  </div>
+</div>
+
+@code {
+  [Parameter, EditorRequired]
+  public GuildMember DiscordMember { get; set; } = null!;
+
+  [Parameter, EditorRequired]
+  public DiscordUserId MappedDiscordUserId { get; set; }
+
+  [Parameter, EditorRequired]
+  public DiscordRoleId RequiredRoleId { get; set; }
+
+  [Parameter, EditorRequired]
+  public List<GuildRole> AllRoles { get; set; } = [];
+
+  [Parameter, EditorRequired]
+  public EventCallback OnChanged { get; set; }
+
+  private bool IsAssigningRole { get; set; }
+
+  private HashSet<string> MemberRoleIds => DiscordMember.Roles.Select(r => r.Value).ToHashSet();
+
+  private bool HasRequiredRole => MemberRoleIds.Contains(RequiredRoleId.Value);
+
+  private GuildRole? RequiredRole => AllRoles.FirstOrDefault(r => r.Id == RequiredRoleId);
+
+  private List<GuildRole> MemberRoles => AllRoles
+      .Where(r => MemberRoleIds.Contains(r.Id.Value))
+      .OrderBy(r => r.Position)
+      .ToList();
+
+  private async Task AssignRoleAsync()
+  {
+    IsAssigningRole = true;
+    StateHasChanged();
+
+    try
+    {
+      await DiscordService.AddRoleToMemberAsync(MappedDiscordUserId.Value, RequiredRoleId.Value);
+      await OnChanged.InvokeAsync();
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"Failed to assign role {RequiredRoleId.Value} to user {MappedDiscordUserId.Value}: {ex.Message}");
+    }
+    finally
+    {
+      IsAssigningRole = false;
+      StateHasChanged();
+    }
+  }
+}

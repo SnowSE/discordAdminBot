@@ -2,11 +2,13 @@
 @using Web.Models.Snow
 @using Web.Services
 @using Web.Components.Shared
+@using Web.Components.Shared.Icons
 @using Web.Components.Snow
+@using Web.Components.Discord.StudentMapping
 @inject DiscordService Discord
 @inject SnowCourseService Snow
 
-<div class="bg-body-secondary p-1 rounded border border-subtle mb-4">
+<div class="p-3 rounded mb-4">
   @if (_showSyncModal)
   {
     <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
@@ -38,42 +40,58 @@
     </div>
   }
 
-  <div class="">
-    @foreach (var category in _categories)
-    {
-      var children = _channelsByCategory.GetValueOrDefault(category?.Id?.Value ?? "", []);
-      <div class="bg-body-tertiary border border-light m-3 rounded p-2">
-        <div class="text-muted text-uppercase fw-semibold mb-1" style="letter-spacing:.05em">
-          @(category?.Name?.Value ?? "Uncategorized")
-        </div>
-        @foreach (var channel in children)
+  @foreach (var category in _categories)
+  {
+    var children = _channelsByCategory.GetValueOrDefault(category?.Id?.Value ?? "", []);
+    <div class="category-card bg-white border mb-4 rounded p-3">
+      <div class="d-flex align-items-center gap-3 text-muted text-uppercase fw-semibold mb-3"
+           style="letter-spacing:.05em; font-size: 0.875rem">
+        @(category?.Name?.Value ?? "Uncategorized")
+        @if (category is not null)
         {
-          var courseInfo = _coursesByChannelId.GetValueOrDefault(channel.Id.Value);
-          var syncInfo = _syncStatusByChannelId.GetValueOrDefault(channel.Id.Value);
-          var assignment = _courseChannels.FirstOrDefault(a => a.DiscordChannelId == channel.Id);
-          var isExpanded = _expandedChannels.Contains(channel.Id.Value);
-          var roleOverwrites = GetRoleOverwrites(channel);
-          <div>
-            <div class="d-flex align-items-center gap-2 py-1 px-4 "
-                 style="cursor: @(assignment is not null ? "pointer" : "default")"
-                 @onclick="() => { if (assignment is not null) ToggleChannel(channel.Id.Value); }">
-              @if (assignment is not null)
-              {
-                <span>@(isExpanded ? "▼" : "▶")</span>
-              }
-              <span>#@(channel.Name?.Value ?? "unnamed")</span>
-              <span class="text-muted">@channel.TypeName</span>
+          @if (IsCategoryPrivate(category))
+          {
+            <LockIcon CssClass="text-secondary" Title="Private category - requires role access" />
+            @foreach (var overwriteRoleName in GetAccessibleRoleNames(category))
+            {
+              <span class="badge text-bg-secondary" style="font-size:0.75rem">@overwriteRoleName</span>
+            }
+          }
+          else
+          {
+            <GlobeIcon CssClass="text-muted" Title="Visible to everyone" />
+          }
+        }
+      </div>
+      @foreach (var channel in children)
+      {
+        var courseInfo = _coursesByChannelId.GetValueOrDefault(channel.Id.Value);
+        var syncInfo = _syncStatusByChannelId.GetValueOrDefault(channel.Id.Value);
+        var assignment = _courseChannels.FirstOrDefault(a => a.DiscordChannelId == channel.Id);
+        var isExpanded = _expandedChannels.Contains(channel.Id.Value);
+        var roleOverwrites = GetRoleOverwrites(channel);
+        <div class="mb-2">
+          <div class="d-flex align-items-center gap-3 py-2 px-3 channel-row rounded" style="cursor: pointer"
+               @onclick="() => ToggleChannel(channel.Id.Value)">
+            <span style="font-size: 0.75rem; width: 12px; display: inline-block; text-align: center">@(isExpanded ? "▼" :
+                                                   "▶")</span>
               @if (roleOverwrites.Any())
               {
-                <span title="Private channel - requires role access">🔒</span>
-                @foreach (var overwriteRoleName in roleOverwrites)
-                {
-                  <span class="badge text-bg-secondary">@overwriteRoleName</span>
-                }
+                <LockIcon CssClass="text-secondary" Title="Private channel - requires role access" />
+
               }
               else
               {
-                <span class="text-muted" title="Visible to everyone">🌐</span>
+                <GlobeIcon CssClass="text-muted" Title="Visible to everyone" />
+              }
+              <span class="fw-medium">#@(channel.Name?.Value ?? "unnamed")</span>
+              <span class="text-muted small">@channel.TypeName</span>
+              @if (roleOverwrites.Any())
+              {
+                @foreach (var overwriteRoleName in roleOverwrites)
+                {
+                  <span class="badge text-body bg-body-tertiary border" style="font-size:0.75rem">@overwriteRoleName</span>
+                }
               }
               @if (courseInfo is not null)
               {
@@ -88,29 +106,12 @@
                 }
               }
             </div>
-            @if (isExpanded && assignment is not null)
+            @if (isExpanded)
             {
               <div class="ms-5 me-3">
-                <StudentMappingForChannel Assignment="assignment" Mappings="_mappings" Members="_members" Roles="_roles"
-                                          OnMappingChanged="ReloadMappingsAsync" />
-
-                <div class="mb-2 mt-3">
-                  <button class="btn btn-outline-danger" @onclick="() => DeleteChannelConfirmation(assignment)">
-                    Delete Channel
-                  </button>
-                  @if (_channelToDelete == assignment)
-                  {
-                    <div class="mt-2">
-                      This will permanently delete the Discord channel and remove the course assignment. Continue?
-                      <button class="btn btn-danger ms-2" @onclick="() => DeleteChannelAsync(assignment)">
-                        Yes, delete
-                      </button>
-                      <button class="btn btn-outline-secondary ms-1" @onclick="CancelDelete">
-                        Cancel
-                      </button>
-                    </div>
-                  }
-                </div>
+                <ChannelDetails Channel="channel" Assignment="assignment" RoleOverwrites="roleOverwrites" MappedIds="_mappings"
+                                AllMembers="_members" AllRoles="_roles" OnMappingChanged="ReloadMappingsAsync"
+                                OnDeleteRequested="HandleDeleteChannelAsync" />
               </div>
             }
           </div>
@@ -118,7 +119,6 @@
       </div>
     }
   </div>
-</div>
 
 @code {
   [CascadingParameter]
@@ -137,7 +137,6 @@
   private bool _syncing;
   private string? _syncError;
   private readonly SyncModel _syncModel = new();
-  private CourseChannelAssignment? _channelToDelete;
 
   protected override async Task OnInitializedAsync()
   {
@@ -260,33 +259,35 @@ a.TermCode)))))
       .ToList();
   }
 
-  private List<PermissionDetail> GetPermissionDetails(GuildChannel channel)
+  private List<string> GetAccessibleRoleNames(GuildChannel channel)
   {
     if (channel.PermissionOverwrites == null || !channel.PermissionOverwrites.Any())
       return [];
 
     const long viewChannelBit = 1L << 10;
 
-    var roleOverwrites = channel.PermissionOverwrites
-          .Where(p => p.Type == PermissionOverwriteType.Role)
-          .ToList();
+    var roleIds = channel.PermissionOverwrites
+      .Where(p => p.Type == PermissionOverwriteType.Role && (p.Deny & viewChannelBit) == 0)
+      .Select(p => p.Id)
+      .ToHashSet();
 
-    var details = new List<PermissionDetail>();
-
-    foreach (var overwrite in roleOverwrites)
-    {
-      var role = _roles.FirstOrDefault(r => r.Id.Value == overwrite.Id);
-      if (role is null)
-        continue;
-
-      var canView = (overwrite.Deny & viewChannelBit) == 0;
-      details.Add(new PermissionDetail(role.Name.Value, canView));
-    }
-
-    return details.OrderByDescending(d => d.CanView).ThenBy(d => d.RoleName).ToList();
+    return _roles.Where(r => roleIds.Contains(r.Id.Value))
+      .OrderBy(r => r.Position)
+      .Select(r => r.Name.Value)
+      .ToList();
   }
 
-  private record PermissionDetail(string RoleName, bool CanView);
+  private bool IsCategoryPrivate(GuildChannel category)
+  {
+    if (category.PermissionOverwrites == null || !category.PermissionOverwrites.Any())
+      return false;
+
+    const long viewChannelBit = 1L << 10;
+
+    return category.PermissionOverwrites.Any(p => p.Type == PermissionOverwriteType.Role && p.Deny != 0 && (p.Deny &
+viewChannelBit) != 0);
+  }
+
 
 
   public void OpenSyncAllModal()
@@ -349,23 +350,8 @@ a.TermCode)))))
     StateHasChanged();
   }
 
-  private void DeleteChannelConfirmation(CourseChannelAssignment assignment)
+  private async Task HandleDeleteChannelAsync(CourseChannelAssignment assignment)
   {
-    _channelToDelete = assignment;
-    StateHasChanged();
-  }
-
-  private void CancelDelete()
-  {
-    _channelToDelete = null;
-    StateHasChanged();
-  }
-
-  private async Task DeleteChannelAsync(CourseChannelAssignment assignment)
-  {
-    _channelToDelete = null;
-    StateHasChanged();
-
     using (Loading?.Start())
     {
       try

@@ -1,0 +1,20 @@
+.page-header {
+  background: linear-gradient(
+    135deg,
+    rgba(0, 102, 204, 0.03) 0%,
+    rgba(0, 102, 204, 0.01) 100%
+  );
+  border-radius: var(--radius-md);
+  padding: 1.5rem 0;
+}
+
+.page-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.page-header p {
+  font-size: 1rem;
+  line-height: 1.6;
+}

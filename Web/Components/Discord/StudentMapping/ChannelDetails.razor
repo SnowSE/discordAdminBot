@@ -1,0 +1,182 @@
+@using Web.Models
+@using Web.Models.Snow
+@using Web.Services
+@inject DiscordService Discord
+
+@if (RoleOverwrites is not null && RoleOverwrites.Any())
+{
+  <div class="mb-2">
+    <div class="text-muted small mb-2">Channel Permissions</div>
+    <div class="d-flex gap-3">
+      @foreach (var detail in resolvedPermissionDetails)
+      {
+        <div class="card card-body bg-body-tertiary mb-2 p-2">
+          <div class="fw-semibold small mb-1">@detail.RoleName</div>
+          @if (detail.Allowed.Any())
+          {
+            <div class="small text-body-emphasis mb-1">
+              <strong>Allowed:</strong>
+              <span class="ms-1 d-inline-block">@(string.Join(", ", detail.Allowed))</span>
+            </div>
+          }
+          @if (detail.Denied.Any())
+          {
+            <div class="small text-body-emphasis">
+              <strong>Denied:</strong>
+              <span class="ms-1 d-inline-block">@(string.Join(", ", detail.Denied))</span>
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}
+
+@if (Assignment is not null)
+{
+  <StudentMappingForChannel Assignment="Assignment" Mappings="@MappedIds" AllMembers="@AllMembers" AllRoles="@AllRoles"
+                            OnMappingChanged="NotifyMappingChanged" />
+}
+
+@if (Assignment is not null)
+{
+  <div class="mb-2 mt-3 d-flex justify-content-end">
+    <button class="btn btn-outline-danger" @onclick="RequestDeleteConfirmation">
+      Delete Channel
+    </button>
+    @if (showDeleteConfirmation)
+    {
+      <div class="mt-2">
+        This will permanently delete the Discord channel and remove the course assignment. Continue?
+        <button class="btn btn-danger ms-2" @onclick="ConfirmDelete">
+          Yes, delete
+        </button>
+        <button class="btn btn-outline-secondary ms-1" @onclick="CancelDelete">
+          Cancel
+        </button>
+      </div>
+    }
+  </div>
+}
+
+@code {
+  [Parameter]
+  public required GuildChannel Channel { get; set; }
+
+  [Parameter]
+  public required CourseChannelAssignment? Assignment { get; set; }
+
+  [Parameter]
+  public required List<string> RoleOverwrites { get; set; }
+
+  [Parameter]
+  public required List<(SnowBadgerId BadgerId, DiscordUserId DiscordUserId)> MappedIds { get; set; }
+
+  [Parameter]
+  public required List<GuildMember> AllMembers { get; set; }
+
+  [Parameter]
+  public required List<GuildRole> AllRoles { get; set; }
+
+  [Parameter]
+  public EventCallback OnMappingChanged { get; set; }
+
+  [Parameter]
+  public EventCallback<CourseChannelAssignment> OnDeleteRequested { get; set; }
+
+  private bool showDeleteConfirmation;
+  private List<ChannelPermissionDetail> resolvedPermissionDetails = [];
+
+  protected override void OnParametersSet()
+  {
+    resolvedPermissionDetails = ResolvePermissionDetails();
+  }
+
+  private List<ChannelPermissionDetail> ResolvePermissionDetails()
+  {
+    if (Channel.PermissionOverwrites == null || !Channel.PermissionOverwrites.Any())
+      return [];
+
+    var details = new List<ChannelPermissionDetail>();
+
+    foreach (var overwrite in Channel.PermissionOverwrites.Where(p => p.Type == PermissionOverwriteType.Role))
+    {
+      var role = AllRoles.FirstOrDefault(r => r.Id.Value == overwrite.Id);
+      if (role is null)
+        continue;
+
+      var allowed = ResolvePermissions(overwrite.Allow);
+      var denied = ResolvePermissions(overwrite.Deny);
+
+      details.Add(new ChannelPermissionDetail(role.Name.Value, allowed, denied));
+    }
+
+    return details.OrderBy(d => d.RoleName).ToList();
+  }
+
+  private static List<string> ResolvePermissions(long bits)
+  {
+    return KnownPermissionBits
+      .Where(b => (bits & b.Bit) != 0)
+      .OrderByDescending(b => b.Bit)
+      .Select(b => b.Name)
+      .ToList();
+  }
+
+  private static readonly (long Bit, string Name)[] KnownPermissionBits =
+  [
+    (1L << 0, "Create Instant Invite"),
+    (1L << 1, "Manage Channels"),
+    (1L << 2, "Manage Guild"),
+    (1L << 3, "Kick Members"),
+    (1L << 4, "Ban Members"),
+    (1L << 5, "Administrator"),
+    (1L << 6, "Add Reactions"),
+    (1L << 7, "Manage Messages"),
+    (1L << 8, "Embed Links"),
+    (1L << 9, "Attach Files"),
+    (1L << 10, "View Channel"),
+    (1L << 11, "Send Messages"),
+    (1L << 12, "Manage Roles"),
+    (1L << 13, "Mention Everyone"),
+    (1L << 14, "Use External Emojis"),
+    (1L << 15, "Use Slash Commands"),
+    (1L << 16, "Read Message History"),
+    (1L << 17, "Use Voice Activity"),
+    (1L << 18, "Connect to Voice"),
+    (1L << 19, "Speak in Voice"),
+    (1L << 20, "Mute Members"),
+    (1L << 35, "Create Public Threads"),
+    (1L << 38, "Send Messages in Threads"),
+  ];
+
+  private record ChannelPermissionDetail(string RoleName, List<string> Allowed, List<string> Denied);
+
+  private async Task NotifyMappingChanged()
+  {
+    await OnMappingChanged.InvokeAsync();
+  }
+
+  private void RequestDeleteConfirmation()
+  {
+    showDeleteConfirmation = true;
+    StateHasChanged();
+  }
+
+  private void CancelDelete()
+  {
+    showDeleteConfirmation = false;
+    StateHasChanged();
+  }
+
+  private async Task ConfirmDelete()
+  {
+    showDeleteConfirmation = false;
+    StateHasChanged();
+
+    if (Assignment is not null)
+    {
+      await OnDeleteRequested.InvokeAsync(Assignment);
+    }
+  }
+}

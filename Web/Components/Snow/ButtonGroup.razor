@@ -1,14 +1,14 @@
 @typeparam TOption
 
-<div class="d-flex flex-nowrap overflow-auto" style="gap:.25rem">
+<div class="d-flex flex-wrap gap-1">
   @foreach (var option in Options)
   {
     var id = IdSelector(option);
     var label = LabelSelector(option);
     var isSelected = id == Value;
 
-    <button class="btn @(isSelected ? "btn-secondary" : "btn-outline-secondary")"
-            disabled="@DisableOnSelected && isSelected" @onclick="() => Select(id)">
+    <button class="btn btn-sm text-nowrap flex-shrink-1 @(isSelected ? "btn-secondary" : "btn-outline-secondary")"
+            disabled="@(DisableOnSelected && isSelected)" @onclick="() => Select(id)">
       @label
     </button>
   }

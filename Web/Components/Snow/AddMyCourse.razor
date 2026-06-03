@@ -75,7 +75,9 @@ else
 
         <div class="mb-3 form-check">
           <input type="checkbox" class="form-check-input" id="isPrivateCheckbox" @bind="_isPrivate" />
-          <label class="form-check-label" for="isPrivateCheckbox">Private channel (only selected role can see)</label>
+          <label class="form-check-label" for="isPrivateCheckbox">
+            Private (@(_showNewCategory ? "category and channel" : "channel") will require role access)
+          </label>
         </div>
 
         @if (_errorMessage is not null)
@@ -106,7 +108,6 @@ else
   private List<(SnowTermCode TermCode, string DisplayName)> _availableTerms = [];
   private SnowTermCode? _selectedTermCode;
 
-  private bool _hasFocusedSearch = false;
   private string _filter = "";
   private SnowCourse? _selected;
   private string _channelName = "";

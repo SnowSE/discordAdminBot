@@ -89,11 +89,23 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
   private const long CreatePublicThreadsBit = 1L << 35;
   private const long SendMessagesInThreadsBit = 1L << 38;
 
-  public async Task<GuildChannel> CreateCategoryAsync(string name, CancellationToken ct = default)
+  public async Task<GuildChannel> CreateCategoryAsync(
+    string name,
+    bool isPrivate = false,
+    DiscordRoleId? roleId = null,
+    CancellationToken ct = default
+  )
   {
+    var permissionOverwrites = BuildPermissionOverwrites(isPrivate, roleId);
+
     var response = await _http.PostAsJsonAsync(
       $"guilds/{_guildId}/channels",
-      new { name, type = 4 },
+      new
+      {
+        name,
+        type = 4,
+        permission_overwrites = permissionOverwrites,
+      },
       JsonOptions,
       ct
     );
@@ -106,16 +118,14 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     if (!isPrivate || roleId is null)
       return [];
 
-    var studentPermissions =
-      ViewChannelBit
-      | SendMessagesBit
-      | ReadMessageHistoryBit
-      | AddReactionsBit
-      | EmbedLinksBit
-      | AttachFilesBit
-      | UseExternalEmojisBit
-      | CreatePublicThreadsBit
-      | SendMessagesInThreadsBit;
+    // var studentPermissions =
+    //   ViewChannelBit
+    //   | SendMessagesBit
+    //   | ReadMessageHistoryBit
+    //   | AddReactionsBit
+    //   | EmbedLinksBit
+    //   | AttachFilesBit
+    //   | UseExternalEmojisBit;
 
     return new List<object>
     {
@@ -123,15 +133,15 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
       {
         id = _guildId,
         type = PermissionOverwriteType.Role,
-        allow = 0L,
-        deny = ViewChannelBit,
+        allow = "0",
+        deny = ViewChannelBit.ToString(),
       },
       new
       {
         id = roleId.Value,
         type = PermissionOverwriteType.Role,
-        allow = studentPermissions,
-        deny = 0L,
+        allow = ViewChannelBit.ToString(),
+        deny = "0",
       },
     };
   }
@@ -139,12 +149,15 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
   public async Task<GuildChannel> CreateTextChannelAsync(
     string name,
     string parentId,
-    bool isPrivate = true,
+    bool isPrivate,
     DiscordRoleId? roleId = null,
+    bool parentHasOverwrites = true,
     CancellationToken ct = default
   )
   {
-    var permissionOverwrites = BuildPermissionOverwrites(isPrivate, roleId);
+    var permissionOverwrites = parentHasOverwrites
+      ? []
+      : BuildPermissionOverwrites(isPrivate, roleId);
 
     var response = await _http.PostAsJsonAsync(
       $"guilds/{_guildId}/channels",

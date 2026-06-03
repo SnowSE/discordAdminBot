@@ -1,0 +1,91 @@
+@using Web.Models
+@using Web.Models.Snow
+@using Web.Services
+@inject SnowCourseService Snow
+
+<div class="ms-5 mb-2">
+  @if (IsLoading)
+  {
+    <div class="text-muted">
+      <span class="spinner-border spinner-border-sm me-1"></span>
+      @LoadingStudentsText
+    </div>
+  }
+  else if (Students.Any())
+  {
+    <div class="text-muted mb-2">@StudentsInCourseText (@Students.Count)</div>
+
+    @foreach (var student in Students.Where(s => s.BadgerId != null).OrderBy(s => s.LastName ?? ""))
+    {
+      if (student.BadgerId == null) continue;
+
+      var mapping = Mappings.FirstOrDefault(m => m.BadgerId == student.BadgerId);
+      var isMapped = mapping != default((SnowBadgerId, DiscordUserId));
+
+      <StudentRow Student="@student" Mapping="@(isMapped ? mapping : default)" IsMapped="@isMapped"
+                  RequiredRoleId="@Assignment.DiscordRoleId" AllMembers="@AllMembers" AllRoles="@AllRoles"
+                  MappedDiscordUserIds="@mappedDiscordUserIds" OnChanged="@OnMappingChangedAsync" />
+    }
+  }
+  else
+  {
+    <div class="text-muted">@NoStudentsCachedText</div>
+  }
+</div>
+
+@code {
+  private static readonly string LoadingStudentsText = "Loading students...";
+  private static readonly string StudentsInCourseText = "students in the course";
+  private static readonly string NoStudentsCachedText = "No students cached. Sync this course to load roster.";
+
+  [Parameter, EditorRequired]
+  public CourseChannelAssignment Assignment { get; set; } = null!;
+
+  [Parameter, EditorRequired]
+  public List<(SnowBadgerId BadgerId, DiscordUserId DiscordUserId)> Mappings { get; set; } = [];
+
+  [Parameter, EditorRequired]
+  public List<GuildMember> AllMembers { get; set; } = [];
+
+  [Parameter, EditorRequired]
+  public List<GuildRole> AllRoles { get; set; } = [];
+
+  [Parameter]
+  public EventCallback OnMappingChanged { get; set; }
+
+  private List<SnowSectionStudent> Students = [];
+  private bool IsLoading = true;
+
+  private HashSet<string> mappedDiscordUserIds => Mappings.Select(m => m.DiscordUserId.Value).ToHashSet();
+
+  protected override async Task OnParametersSetAsync()
+  {
+    await LoadStudentsAsync();
+  }
+
+  private async Task LoadStudentsAsync()
+  {
+    IsLoading = true;
+    StateHasChanged();
+
+    try
+    {
+      Students = await Snow.GetCachedSectionStudentsAsync(Assignment.Crn, Assignment.TermCode);
+    }
+    catch (Exception ex)
+    {
+      Console.WriteLine($"Error loading students for CRN '{Assignment.Crn}' term '{Assignment.TermCode}': {ex.Message}");
+      Students = [];
+    }
+    finally
+    {
+      IsLoading = false;
+      StateHasChanged();
+    }
+  }
+
+  private async Task OnMappingChangedAsync()
+  {
+    await OnMappingChanged.InvokeAsync();
+  }
+}

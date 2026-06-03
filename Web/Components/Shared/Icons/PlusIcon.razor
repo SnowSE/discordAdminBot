@@ -1,0 +1,17 @@
+<svg width="@Width" height="@Height" viewBox="0 0 16 16" fill="currentColor" class="@CssClass" style="@Style">
+  <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z" />
+</svg>
+
+@code {
+  [Parameter]
+  public string Width { get; set; } = "16";
+
+  [Parameter]
+  public string Height { get; set; } = "16";
+
+  [Parameter]
+  public string CssClass { get; set; } = "";
+
+  [Parameter]
+  public string Style { get; set; } = "";
+}
