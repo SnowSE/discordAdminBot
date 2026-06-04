@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discordadminbot
+  namespace: snow-discord-bot
+  labels:
+    app: discordadminbot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: discordadminbot
+  template:
+    metadata:
+      labels:
+        app: discordadminbot
+    spec:
+      containers:
+        - name: discordadminbot
+          image: ghcr.io/KUSTOMIZE_REPLACE_ME:KUSTOMIZE_REPLACE_ME
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Production
+            - name: CACHE_DB_PATH
+              value: /data/discord_cache.db
+          envFrom:
+            - secretRef:
+                name: discordadminbot-secrets
+          volumeMounts:
+            - name: db-storage
+              mountPath: /data
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: discordadminbot-db
