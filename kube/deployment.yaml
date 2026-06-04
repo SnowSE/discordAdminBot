@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: discordadminbot
-          image: ghcr.io/KUSTOMIZE_REPLACE_ME:KUSTOMIZE_REPLACE_ME
+          image: ghcr.io/snowse/discordadminbot:2
           ports:
             - containerPort: 8080
               protocol: TCP
