@@ -9,39 +9,43 @@
 
 <PageTitle>Discord Overview</PageTitle>
 <LoadingAndError>
-  <div class="page-header mb-4 p-2 pb-3 border-bottom">
-    <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
-      <h1 class="mb-0 me-auto">Discord Overview</h1>
-      @if (!_addingCourse)
-      {
-        <button class="btn btn-primary" @onclick="() => _addingCourse = true">
-          <PlusIcon CssClass="me-1" Style="margin-top: -2px" />
-          Add My Course
+  <ModalProvider>
+    <div class="page-header mb-4 p-2 pb-3 border-bottom">
+      <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+        <h1 class="mb-0 me-auto">Discord Overview</h1>
+
+      </div>
+
+      <div class="d-flex flex-wrap gap-2">
+        @if (!_addingCourse)
+        {
+          <button class="btn btn-primary" @onclick="() => _addingCourse = true">
+            <PlusIcon CssClass="me-1" Style="margin-top: -2px" />
+            Add My Course
+          </button>
+        }
+        <SyncStatus />
+        <button class="btn btn-outline-secondary" @onclick="() => _channelListRef?.OpenSyncAllModal()">
+          <SyncIcon CssClass="me-1" Style="margin-top: -2px" />
+          Sync course rosters
         </button>
-      }
+        <SyncCourseList />
+      </div>
     </div>
 
-    <div class="d-flex flex-wrap gap-2">
-      <SyncStatus />
-      <button class="btn btn-outline-secondary" @onclick="() => _channelListRef?.OpenSyncAllModal()">
-        <SyncIcon CssClass="me-1" Style="margin-top: -2px" />
-        Sync course rosters
-      </button>
-    </div>
-  </div>
+    @if (_addingCourse)
+    {
+      <LoadingAndError>
+        <AddMyCourse OnCancel="() => _addingCourse = false" />
+      </LoadingAndError>
+    }
 
-  @if (_addingCourse)
-  {
+    <br>
+    <InviteToServer />
     <LoadingAndError>
-      <AddMyCourse OnCancel="() => _addingCourse = false" />
+      <ChannelList @ref="_channelListRef" />
     </LoadingAndError>
-  }
-
-  <br>
-  <InviteToServer />
-  <LoadingAndError>
-    <ChannelList @ref="_channelListRef" />
-  </LoadingAndError>
+  </ModalProvider>
 </LoadingAndError>
 
 @code {

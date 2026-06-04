@@ -2,6 +2,16 @@
 @using Web.Models.Snow
 @using Web.Services
 @inject DiscordService Discord
+@rendermode InteractiveServer
+
+@if (Assignment is null)
+{
+  <div class="mb-2 mt-3 d-flex justify-content-end">
+    <button class="btn btn-outline-primary" @onclick="ShowAssignDialog">
+      Assign to Course
+    </button>
+  </div>
+}
 
 @if (RoleOverwrites is not null && RoleOverwrites.Any())
 {
@@ -60,6 +70,9 @@
 }
 
 @code {
+  [CascadingParameter(Name = "ModalContext")]
+  public Shared.ModalContext? Modal { get; set; }
+
   [Parameter]
   public required GuildChannel Channel { get; set; }
 
@@ -178,5 +191,20 @@
     {
       await OnDeleteRequested.InvokeAsync(Assignment);
     }
+  }
+
+  private void ShowAssignDialog()
+  {
+    Modal!.Show(BuildAssignDialogContent());
+  }
+
+  private RenderFragment BuildAssignDialogContent()
+  {
+    return @<AssignCourseDialog ChannelId="Channel.Id" AvailableRoles="AllRoles" OnAssigned="OnCourseAssigned" />;
+  }
+
+  private void OnCourseAssigned()
+  {
+    _ = OnMappingChanged.InvokeAsync();
   }
 }

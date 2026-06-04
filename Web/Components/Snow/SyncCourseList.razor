@@ -1,0 +1,118 @@
+@using Web.Models.Snow
+@using Web.Services
+@using Web.Components.Shared
+@inject SnowCourseService Snow
+
+<div>
+  @if (_showModal)
+  {
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Sync Course List</h5>
+            <button type="button" class="btn-close" @onclick="CloseModal"></button>
+          </div>
+          <div class="modal-body">
+            <JwtInput Label="Token" @bind-Token="_model.JwtToken" />
+            <div class="mb-3">
+              <label class="form-label mb-1">Term</label>
+              <select class="form-select" @bind:value="_model.TermCode">
+                @foreach (var termOption in _termOptions)
+                {
+                  <option value="@termOption.TermCode">@termOption.DisplayName</option>
+                }
+              </select>
+            </div>
+            @if (_errorMessage is not null)
+            {
+              <div class="alert alert-danger py-2 mb-3">@_errorMessage</div>
+            }
+            <div class="d-flex gap-2 justify-content-end">
+              <button type="button" class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+              <button type="button" class="btn btn-primary" disabled="@_syncing" @onclick="SyncAsync">
+                @if (_syncing)
+                {
+                  <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                Sync Course List
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <button class="btn btn-outline-secondary" @onclick="OpenModal">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="me-1"
+         style="margin-top: -2px">
+      <path
+      d="M4.5 3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zM3 6a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6z" />
+    </svg>
+    Sync course list
+  </button>
+</div>
+
+@code {
+  [CascadingParameter]
+  protected LoadingBoundaryContext? Loading { get; set; }
+
+  private bool _showModal;
+  private bool _syncing;
+  private string? _errorMessage;
+  private readonly SyncModel _model = new();
+  private List<(SnowTermCode TermCode, string DisplayName)> _termOptions = [];
+
+  protected override void OnInitialized()
+  {
+    _termOptions = SnowCourseService.GenerateUpcomingTermOptions();
+    _model.TermCode = _termOptions[0].TermCode.Value;
+  }
+
+  private void OpenModal()
+  {
+    _showModal = true;
+    _errorMessage = null;
+  }
+
+  private void CloseModal()
+  {
+    _showModal = false;
+    _errorMessage = null;
+  }
+
+  private async Task SyncAsync()
+  {
+    if (string.IsNullOrWhiteSpace(_model.JwtToken))
+    {
+      _errorMessage = "Paste your auth token before syncing the course list.";
+      return;
+    }
+
+    _errorMessage = null;
+    _syncing = true;
+    try
+    {
+      using (Loading?.Start())
+      {
+        await Snow.RefreshCoursesAsync(_model.TermCode, _model.JwtToken.Trim());
+      }
+      CloseModal();
+    }
+    catch (Exception ex)
+    {
+      _errorMessage = $"Course list sync failed: {ex.Message}";
+    }
+    finally
+    {
+      _syncing = false;
+    }
+  }
+
+  private sealed class SyncModel
+  {
+    public string TermCode { get; set; } = "";
+    public string JwtToken { get; set; } = "";
+  }
+}

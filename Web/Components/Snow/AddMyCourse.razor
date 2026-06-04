@@ -1,4 +1,5 @@
 @using Microsoft.JSInterop
+@using System.Timers
 @using Web.Models
 @using Web.Models.Snow
 @using Web.Services
@@ -23,7 +24,7 @@
 
     <label class="form-label mb-1" for="add-course-search">Search by name, code, or instructor</label>
     <input id="add-course-search" autofocus class="form-control mb-3" placeholder="Search by name, code, or instructor…"
-           @bind="_filter" @bind:event="oninput" />
+           @oninput="OnSearchInput" />
     <div>
       selected term
     </div>
@@ -120,6 +121,8 @@
   private SnowTermCode? _selectedTermCode;
 
   private string _filter = "";
+  private string _pendingFilter = "";
+  private Timer? _debounceTimer;
   private SnowCourse? _selected;
   private string _channelName = "";
   private string _selectedCategoryId = "";
@@ -130,9 +133,12 @@
   private bool _saving;
   private string? _errorMessage;
 
+  private static readonly HashSet<string> DefaultDepartments = ["SE", "CS", "ENGR"];
+
   private IEnumerable<SnowCourse> FilteredCourses =>
     _courses
       .Where(c => _selectedTermCode is null || c.Term.Code == _selectedTermCode)
+      .Where(c => !string.IsNullOrWhiteSpace(_filter) || DefaultDepartments.Contains(c.SubjectCode.Value))
       .Where(MatchesFilter)
       .OrderBy(c => c.SubjectCode.Value).ThenBy(c => c.CourseNumber.Value)
       .Take(string.IsNullOrWhiteSpace(_filter) ? 15 : int.MaxValue);
@@ -151,6 +157,22 @@
   {
     DiscordService.DbDataChanged -= HydrateDiscordAsync;
     SnowCourseService.DataChanged -= HydrateCoursesAsync;
+    _debounceTimer?.Dispose();
+  }
+
+  private void OnSearchInput(ChangeEventArgs e)
+  {
+    _pendingFilter = e.Value?.ToString() ?? "";
+    _debounceTimer?.Dispose();
+    _debounceTimer = new Timer(100) { AutoReset = false };
+    _debounceTimer.Elapsed += (_, _) => InvokeAsync(ApplyDebouncedFilter);
+    _debounceTimer.Start();
+  }
+
+  private void ApplyDebouncedFilter()
+  {
+    _filter = _pendingFilter;
+    StateHasChanged();
   }
 
   private async Task HydrateCoursesAsync()
@@ -160,7 +182,7 @@
     var results = await Task.WhenAll(courseTasks);
     _courses = [.. results.SelectMany(r => r)];
     _availableTerms = termOptions.Where(t => _courses.Any(c => c.Term.Code == t.TermCode)).ToList();
-    _selectedTermCode ??= _availableTerms.FirstOrDefault().TermCode;
+    _selectedTermCode ??= _availableTerms.LastOrDefault().TermCode;
     await InvokeAsync(StateHasChanged);
   }
 

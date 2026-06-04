@@ -1,0 +1,21 @@
+@namespace Web.Components.Shared
+@rendermode InteractiveServer
+
+<CascadingValue Name="ModalContext" Value="Context">
+  @ChildContent
+  @if (Context.IsOpen)
+  {
+    <div class="modal-backdrop-custom">@Context.Content</div>
+  }
+</CascadingValue>
+
+@code {
+  [Parameter] public required RenderFragment ChildContent { get; set; }
+
+  private ModalContext Context { get; set; } = new();
+
+  protected override void OnInitialized()
+  {
+    Context.OnChange = () => InvokeAsync(StateHasChanged);
+  }
+}

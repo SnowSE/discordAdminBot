@@ -1,0 +1,38 @@
+.expandable-chevron {
+  font-size: 0.75rem;
+  width: 12px;
+  display: inline-block;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.expandable:hover {
+  transform: translateX(2px);
+}
+
+.expanded .expandable-chevron {
+  transform: rotate(90deg);
+}
+
+.expandable-header {
+  transition: all 0.3s ease;
+}
+
+.expandable-header:hover {
+  background-color: rgba(var(--bs-primary-rgb), 0.08);
+  border-color: rgba(var(--bs-primary-rgb), 0.2);
+}
+
+.expandable-wrapper {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+}
+
+.expanded .expandable-wrapper {
+  grid-template-rows: 1fr;
+}
+
+.expandable-inner {
+  overflow: hidden;
+}

@@ -200,6 +200,19 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
     return await db.GetCourseChannelAssignmentsAsync();
   }
 
+  public async Task AssignCourseToChannelAsync(
+    SnowCrn crn,
+    SnowTermCode termCode,
+    DiscordChannelId channelId,
+    DiscordRoleId roleId,
+    CancellationToken ct = default
+  )
+  {
+    var assignment = new CourseChannelAssignment(crn, termCode, channelId, roleId, DateTime.UtcNow);
+    await db.SaveCourseChannelAssignmentAsync(assignment);
+    DbDataChanged?.Invoke();
+  }
+
   public async Task<CourseChannelAssignment> SetupCourseChannelAsync(
     SnowCrn crn,
     SnowTermCode termCode,

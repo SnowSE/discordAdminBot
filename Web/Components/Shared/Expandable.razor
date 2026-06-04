@@ -1,0 +1,33 @@
+<div class="expandable mb-2 @(_isExpanded ? " expanded" : string.Empty) bg-body-tertiary rounded border border-body-secondary">
+  <div class="d-flex align-items-center gap-3 py-2 px-3 expandable-header rounded" @onclick="ToggleAsync"
+       style="cursor: pointer">
+    <span class="expandable-chevron text-muted">&#9654;</span>
+    @Header
+  </div>
+  <div class="expandable-wrapper">
+    <div class="expandable-inner ms-5 me-3">
+      @Body
+    </div>
+  </div>
+</div>
+
+@code {
+  [Parameter] public RenderFragment Header { get; set; } = default!;
+  [Parameter] public RenderFragment Body { get; set; } = default!;
+  [Parameter] public bool InitialExpanded { get; set; }
+
+  private bool _isExpanded;
+
+  protected override void OnInitialized()
+  {
+    _isExpanded = InitialExpanded;
+  }
+
+  private Task ToggleAsync()
+  {
+    _isExpanded = !_isExpanded;
+    StateHasChanged();
+    return Task.CompletedTask;
+  }
+}
+
