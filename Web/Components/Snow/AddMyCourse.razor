@@ -1,129 +1,81 @@
 @using Microsoft.JSInterop
-@using System.Timers
 @using Web.Models
 @using Web.Models.Snow
 @using Web.Services
 @inject DiscordService Discord
-@inject SnowCourseService Snow
 @rendermode InteractiveServer
 
 <div class="add-course-form p-2 rounded">
 
   <div class="d-flex justify-content-between align-items-center mb-3">
-
     <h3>Adding Chat for Course</h3>
-
     <button class="btn btn-outline-secondary" @onclick="OnCancel">Cancel</button>
   </div>
-  @if (_courses.Count == 0)
-  {
-    <p class="text-muted">No courses cached. Use the Courses page to refresh course data first.</p>
-  }
-  else
-  {
 
-    <label class="form-label mb-1" for="add-course-search">Search by name, code, or instructor</label>
-    <input id="add-course-search" autofocus class="form-control mb-3" placeholder="Search by name, code, or instructor…"
-           @oninput="OnSearchInput" />
-    <div>
-      selected term
-    </div>
-    <div class="d-flex align-items-center gap-3 mb-3">
-      <div class="d-flex gap-2">
-        @foreach (var term in _availableTerms)
-        {
-          <button class="btn @(_selectedTermCode == term.TermCode ? "btn-secondary" : "btn-outline-secondary")"
-                  @onclick="() => _selectedTermCode = term.TermCode">
-            @term.DisplayName
-          </button>
-        }
-      </div>
-    </div>
-
-    <div class="d-flex flex-wrap gap-3 mb-4">
-      @foreach (var course in FilteredCourses)
-      {
-        <CourseCard Course="course" IsConfigured="_assignedCrns.Contains(course.Crn)"
-                    OnSelect="() => SelectCourse(course)" />
-      }
-      @if (!FilteredCourses.Any())
-      {
-        <p class="text-muted">No courses match your search.</p>
-      }
-    </div>
-
-    @if (_selected is not null)
-    {
-      <div class="card mb-4" style="max-width:480px">
-        <div class="card-header py-2 d-flex justify-content-between align-items-center">
-          <strong>@_selected.SubjectCode @_selected.CourseNumber – @_selected.SectionNumber</strong>
-          <span class="text-muted">@_selected.Name</span>
-        </div>
-        <div class="card-body">
-          <div class="mb-3">
-            <label class="form-label mb-1">Channel name (human readable)</label>
-            <input class="form-control font-monospace" @bind="_channelName" />
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label mb-1">Category (Graduating Class to group by)</label>
-            <ButtonGroup @bind-Value="_selectedCategoryId" Options="_categories" IdSelector="c => c.Id.Value"
-                         LabelSelector="c => c.Name?.Value ?? c.Id.Value" />
-            <button class="btn btn-outline-secondary mt-2" @onclick="() => _showNewCategory = true">
-              + New category…
-            </button>
-            @if (_showNewCategory)
-            {
-              <input class="form-control mt-2" placeholder="Category name" @bind="_newCategoryName" />
-            }
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label mb-1">Student role (permission visibility)</label>
-            <ButtonGroup @bind-Value="_selectedRoleId" Options="_roles" IdSelector="r => r.Id"
-                         LabelSelector="r => r.Name" />
-          </div>
-
-          <div class="mb-3 form-check">
-            <input type="checkbox" class="form-check-input" id="isPrivateCheckbox" @bind="_isPrivate" />
-            <label class="form-check-label" for="isPrivateCheckbox">
-              Private (@(_showNewCategory ? "category and channel" : "channel") will require role access)
-            </label>
-          </div>
-
-          @if (_errorMessage is not null)
-          {
-            <div class="text-danger mb-2">@_errorMessage</div>
-          }
-
-          <button class="btn btn-primary" disabled="@_saving" @onclick="SetupChannelAsync">
-            @if (_saving)
-            {
-              <span class="spinner-border spinner-border-sm me-1"></span>
-            }
-            Create Channel
-          </button>
-        </div>
-      </div>
-    }
-  }
+  <SearchForCourse AssignedCrns="_assignedCrns" OnCourseSelected="SelectCourse"
+                   SelectedDetailsTemplate="@ChannelSetupTemplate" />
 </div>
 
 @code {
+  private RenderFragment<SnowCourse> ChannelSetupTemplate => course => @<div class="card mb-4" style="max-width:480px">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+      <strong>@course.SubjectCode @course.CourseNumber – @course.SectionNumber</strong>
+      <span class="text-muted">@course.Name</span>
+    </div>
+    <div class="card-body">
+
+      <div class="mb-3">
+        <label class="form-label mb-1">Channel name (human readable)</label>
+        <input class="form-control font-monospace" @bind="_channelName" />
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label mb-1">Category (Graduating Class to group by)</label>
+        <ButtonGroup @bind-Value="_selectedCategoryId" Options="_categories" IdSelector="c => c.Id.Value"
+                     LabelSelector="c => c.Name?.Value ?? c.Id.Value" />
+        <button class="btn btn-outline-secondary mt-2" @onclick="() => _showNewCategory = true">
+          + New category…
+        </button>
+        @if (_showNewCategory)
+        {
+          <input class="form-control mt-2" placeholder="Category name" @bind="_newCategoryName" />
+        }
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label mb-1">Student role (permission visibility)</label>
+        <ButtonGroup @bind-Value="_selectedRoleId" Options="_roles" IdSelector="r => r.Id" LabelSelector="r => r.Name" />
+      </div>
+
+      <div class="mb-3 form-check">
+        <input type="checkbox" class="form-check-input" id="isPrivateCheckbox" @bind="_isPrivate" />
+        <label class="form-check-label" for="isPrivateCheckbox">
+          Private (@(_showNewCategory ? "category and channel" : "channel") will require role access)
+        </label>
+      </div>
+
+      @if (_errorMessage is not null)
+      {
+        <div class="text-danger mb-2">@_errorMessage</div>
+      }
+
+      <button class="btn btn-primary" disabled="@_saving || _selectedCourse is null" @onclick="SetupChannelAsync">
+        @if (_saving)
+        {
+          <span class="spinner-border spinner-border-sm me-1"></span>
+        }
+        Create Channel
+      </button>
+    </div>
+  </div>;
+
   [CascadingParameter] protected LoadingBoundaryContext? Loading { get; set; }
   [Parameter] public EventCallback OnCancel { get; set; }
 
-  private List<SnowCourse> _courses = [];
   private HashSet<SnowCrn> _assignedCrns = [];
   private List<GuildChannel> _categories = [];
   private List<GuildRole> _roles = [];
-  private List<(SnowTermCode TermCode, string DisplayName)> _availableTerms = [];
-  private SnowTermCode? _selectedTermCode;
-
-  private string _filter = "";
-  private string _pendingFilter = "";
-  private Timer? _debounceTimer;
-  private SnowCourse? _selected;
+  private SnowCourse? _selectedCourse;
   private string _channelName = "";
   private string _selectedCategoryId = "";
   private bool _showNewCategory;
@@ -133,57 +85,18 @@
   private bool _saving;
   private string? _errorMessage;
 
-  private static readonly HashSet<string> DefaultDepartments = ["SE", "CS", "ENGR"];
-
-  private IEnumerable<SnowCourse> FilteredCourses =>
-    _courses
-      .Where(c => _selectedTermCode is null || c.Term.Code == _selectedTermCode)
-      .Where(c => !string.IsNullOrWhiteSpace(_filter) || DefaultDepartments.Contains(c.SubjectCode.Value))
-      .Where(MatchesFilter)
-      .OrderBy(c => c.SubjectCode.Value).ThenBy(c => c.CourseNumber.Value)
-      .Take(string.IsNullOrWhiteSpace(_filter) ? 15 : int.MaxValue);
-
   protected override async Task OnInitializedAsync()
   {
     DiscordService.DbDataChanged += HydrateDiscordAsync;
-    SnowCourseService.DataChanged += HydrateCoursesAsync;
     using (Loading?.Start())
     {
-      await Task.WhenAll(HydrateCoursesAsync(), HydrateDiscordAsync());
+      await HydrateDiscordAsync();
     }
   }
 
   public void Dispose()
   {
     DiscordService.DbDataChanged -= HydrateDiscordAsync;
-    SnowCourseService.DataChanged -= HydrateCoursesAsync;
-    _debounceTimer?.Dispose();
-  }
-
-  private void OnSearchInput(ChangeEventArgs e)
-  {
-    _pendingFilter = e.Value?.ToString() ?? "";
-    _debounceTimer?.Dispose();
-    _debounceTimer = new Timer(100) { AutoReset = false };
-    _debounceTimer.Elapsed += (_, _) => InvokeAsync(ApplyDebouncedFilter);
-    _debounceTimer.Start();
-  }
-
-  private void ApplyDebouncedFilter()
-  {
-    _filter = _pendingFilter;
-    StateHasChanged();
-  }
-
-  private async Task HydrateCoursesAsync()
-  {
-    var termOptions = SnowCourseService.GenerateUpcomingTermOptions().Take(2).ToList();
-    var courseTasks = termOptions.Select(t => Snow.GetCoursesForTermAsync(t.TermCode)).ToList();
-    var results = await Task.WhenAll(courseTasks);
-    _courses = [.. results.SelectMany(r => r)];
-    _availableTerms = termOptions.Where(t => _courses.Any(c => c.Term.Code == t.TermCode)).ToList();
-    _selectedTermCode ??= _availableTerms.LastOrDefault().TermCode;
-    await InvokeAsync(StateHasChanged);
   }
 
   private async Task HydrateDiscordAsync()
@@ -207,7 +120,7 @@
 
   private void SelectCourse(SnowCourse course)
   {
-    _selected = course;
+    _selectedCourse = course;
     _errorMessage = null;
 
     var termCode = course.Term.Code.Value;
@@ -225,24 +138,24 @@
 
   private async Task SetupChannelAsync()
   {
-    if (_selected is null)
+    if (_selectedCourse is null)
       return;
 
     if (string.IsNullOrWhiteSpace(_channelName))
     {
-      _errorMessage = "Channel name is required.";
+      _errorMessage = "Channel name is required when creating a new course channel.";
       return;
     }
 
     if (string.IsNullOrWhiteSpace(_selectedRoleId))
     {
-      _errorMessage = "Please select a student role.";
+      _errorMessage = "Please select a student role for the course channel.";
       return;
     }
 
     if (string.IsNullOrWhiteSpace(_selectedCategoryId) && !_showNewCategory)
     {
-      _errorMessage = "Please select or create a category.";
+      _errorMessage = "Please select or create a category for the course channel.";
       return;
     }
 
@@ -251,7 +164,7 @@
     {
       if (string.IsNullOrWhiteSpace(_newCategoryName))
       {
-        _errorMessage = "Enter a name for the new category before creating.";
+        _errorMessage = "Enter a name for the new category before creating a channel.";
         return;
       }
       categoryNameForNewCategory = _newCategoryName.Trim();
@@ -265,8 +178,8 @@
       DiscordChannelId? existingCategoryId = _showNewCategory ? null : new DiscordChannelId(_selectedCategoryId);
 
       await Discord.SetupCourseChannelAsync(
-        _selected.Crn,
-        _selected.Term.Code,
+        _selectedCourse.Crn,
+        _selectedCourse.Term.Code,
         _channelName,
         existingCategoryId,
         categoryNameForNewCategory,
@@ -274,10 +187,11 @@
         _isPrivate
       );
 
-      _selected = null;
+      _selectedCourse = null;
       _channelName = "";
       _newCategoryName = "";
       _isPrivate = true;
+      _showNewCategory = false;
     }
     catch (Exception ex)
     {
@@ -287,21 +201,5 @@
     {
       _saving = false;
     }
-  }
-
-  private bool MatchesFilter(SnowCourse course)
-  {
-    if (string.IsNullOrWhiteSpace(_filter))
-      return true;
-
-    var filter = _filter.Trim();
-    var primaryName = (course.Instructors.FirstOrDefault(i => i.PrimaryInstructor) ??
-course.Instructors.FirstOrDefault())?.Name ?? "";
-    var code = $"{course.SubjectCode.Value} {course.CourseNumber.Value}";
-
-    return course.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
-      || primaryName.Contains(filter, StringComparison.OrdinalIgnoreCase)
-      || course.SubjectCode.Value.Contains(filter, StringComparison.OrdinalIgnoreCase)
-      || code.Contains(filter, StringComparison.OrdinalIgnoreCase);
   }
 }

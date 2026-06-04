@@ -1,9 +1,8 @@
 @using Web.Models
 @using Web.Models.Snow
 @using Web.Services
-@inject SnowCourseService Snow
+@using Web.Components.Snow
 @inject DiscordService Discord
-@rendermode InteractiveServer
 
 @if (_loading)
 {
@@ -20,140 +19,36 @@ else
         <button type="button" class="btn-close" @onclick="CancelAsync"></button>
       </div>
       <div class="modal-body">
-        <div class="row g-3 mb-3">
-          <div class="col-auto">
-            <label class="form-label mb-1">Term</label>
-            <select class="form-select" @bind:value="_termCode">
-              @foreach (var termOption in _termOptions)
-              {
-                <option value="@termOption.TermCode">@termOption.DisplayName</option>
-              }
-            </select>
-          </div>
-          <div class="col-auto" style="min-width: 280px;">
-            <label class="form-label mb-1">Search courses</label>
-            <input type="text" class="form-control" placeholder="Type to search..." @oninput="OnSearchInput" />
-          </div>
-          <div class="col-auto d-flex align-items-end gap-2">
-            <button type="button" class="btn btn-outline-secondary" disabled="@_refreshingCourses"
-                    @onclick="OpenRefreshModalAsync">
-              Refresh courses
-            </button>
-          </div>
-        </div>
 
         @if (_error is not null)
         {
           <div class="alert alert-danger py-2 mb-3">@_error</div>
         }
 
-        @if (_selectedCourse is not null)
-        {
-          <div class="alert alert-success py-2 mb-3">
-            Selected: <strong>@_selectedCourse.Name</strong> (CRN: @_selectedCourse.Crn)
-          </div>
-        }
+        <SearchForCourse ShowRefreshButton="true" OnCourseSelected="OnCourseSelected"
+                         SelectedDetailsTemplate="@SelectedSummaryTemplate" />
 
-        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-          <table class="table table-hover table-sm mb-0">
-            <thead class="sticky-top bg-body">
-              <tr>
-                <th class="ps-3">Name</th>
-                <th>CRN</th>
-                <th>Department</th>
-                <th>Number</th>
-                <th>Instructors</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              @if (_filteredCourses is null || !_filteredCourses.Any())
-              {
-                <tr>
-                  <td colspan="6" class="text-center text-muted py-3">No courses found.</td>
-                </tr>
-              }
-              else
-              {
-                @foreach (var course in _filteredCourses)
-                {
-                  <tr class="@(_selectedCourse?.Crn == course.Crn ? "table-active" : null)">
-                    <td class="ps-3">@course.Name</td>
-                    <td>@course.Crn</td>
-                    <td>@course.SubjectCode</td>
-                    <td>@course.CourseNumber</td>
-                    <td class="small text-muted">@(course.Instructors.Any() ? string.Join(", ", course.Instructors.Select(i =>
-                                                                                  i.Name)) : "—")</td>
-                      <td class="text-nowrap">
-                        @if (_selectedCourse?.Crn == course.Crn)
-                        {
-                          <span class="text-success small fw-medium">Selected</span>
-                        }
-                        else
-                        {
-                          <button type="button" class="btn btn-sm btn-outline-primary py-0" style="font-size: 0.75rem;"
-                                  @onclick="() => SelectCourseAsync(course)">Select</button>
-                        }
-                      </td>
-                    </tr>
-                  }
-                }
-              </tbody>
-            </table>
-          </div>
-
-          @if (_showJwtModal)
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" @onclick="CancelAsync">Cancel</button>
+        <button type="button" class="btn btn-primary" disabled="@_selectedCourse is null || _assigning"
+                @onclick="AssignAsync">
+          @if (_assigning)
           {
-            <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.7)">
-              <div class="modal-dialog modal-dialog-centered">
-                <div class="modal-content">
-                  <div class="modal-header">
-                    <h6 class="modal-title">Refresh Courses</h6>
-                    <button type="button" class="btn-close" @onclick="() => _showJwtModal = false"></button>
-                  </div>
-                  <div class="modal-body">
-                    <p class="text-muted small mb-2">Paste your my.snow.edu auth token to fetch fresh course data.</p>
-                    <input type="text" @bind-value="_jwtToken" class="form-control font-monospace mb-2"
-                           placeholder="Paste JWT token..." autocomplete="off" spellcheck="false" />
-                    @if (_refreshJwtError is not null)
-                    {
-                      <div class="text-danger small">@_refreshJwtError</div>
-                    }
-                  </div>
-                  <div class="modal-footer py-2">
-                    <button type="button" class="btn btn-secondary btn-sm"
-                            @onclick="() => _showJwtModal = false">Cancel</button>
-                    <button type="button" class="btn btn-primary btn-sm" disabled="@_refreshingCourses"
-                            @onclick="RefreshCoursesAsync">
-                      @if (_refreshingCourses)
-                      {
-                        <span class="spinner-border spinner-border-sm me-1"></span>
-                      }
-                      Refresh
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <span class="spinner-border spinner-border-sm me-1"></span>
           }
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" @onclick="CancelAsync">Cancel</button>
-          <button type="button" class="btn btn-primary" disabled="@_selectedCourse is null || _assigning || _loading"
-                  @onclick="AssignAsync">
-            @if (_assigning)
-            {
-              <span class="spinner-border spinner-border-sm me-1"></span>
-            }
-            Assign Course
-          </button>
-        </div>
+          Assign Course
+        </button>
       </div>
     </div>
-  }
+  </div>
+}
 
 @code {
+  private RenderFragment<SnowCourse> SelectedSummaryTemplate => course => @<div class="alert alert-success py-2 mb-3">
+    Selected: <strong>@course.Name</strong> (CRN: @course.Crn)
+  </div>;
+
   [CascadingParameter(Name = "ModalContext")]
   public required ModalContext Modal { get; set; }
 
@@ -163,106 +58,19 @@ else
 
   private bool _loading = true;
   private bool _assigning;
-  private bool _refreshingCourses;
-  private bool _showJwtModal;
   private string? _error;
-  private string? _refreshJwtError;
-  private string _jwtToken = "";
-  private string _termCode = "";
-  private List<(SnowTermCode TermCode, string DisplayName)> _termOptions = [];
-  private List<SnowCourse> _courses = [];
-  private IEnumerable<SnowCourse> _filteredCourses = [];
   private SnowCourse? _selectedCourse;
 
   protected override async Task OnInitializedAsync()
   {
-    _termOptions = SnowCourseService.GenerateUpcomingTermOptions();
-    if (_termOptions.Count > 0)
-      _termCode = _termOptions[0].TermCode.Value;
-
-    await LoadCoursesAsync();
+    await InvokeAsync(StateHasChanged);
+    _loading = false;
   }
 
-  private async Task LoadCoursesAsync()
-  {
-    try
-    {
-      var courses = await Snow.GetCoursesForTermAsync(new SnowTermCode(_termCode));
-      _courses = courses ?? [];
-      ApplyFilter();
-    }
-    catch (Exception ex) when (ex is not OperationCanceledException)
-    {
-      _error = $"Failed to load courses for term '{_termCode}': {ex.Message}";
-    }
-    finally
-    {
-      _loading = false;
-    }
-  }
-
-  private void SelectCourseAsync(SnowCourse course)
+  private void OnCourseSelected(SnowCourse course)
   {
     _selectedCourse = course;
     StateHasChanged();
-  }
-
-  private void OnSearchInput(ChangeEventArgs e)
-  {
-    ApplyFilter(e.Value?.ToString() ?? "");
-  }
-
-  private void ApplyFilter(string? filterValue = null)
-  {
-    var filter = (filterValue ?? "").Trim().ToLowerInvariant();
-
-    _filteredCourses = filter is "" or " "
-        ? _courses
-        : _courses.Where(c => MatchesSearchFilter(c, filter));
-
-    StateHasChanged();
-  }
-
-  private static bool MatchesSearchFilter(SnowCourse course, string filter)
-  {
-    return course.Name.ToLowerInvariant().Contains(filter) ||
-           course.Crn.ToString().ToLowerInvariant().Contains(filter) ||
-           course.SubjectCode.ToString().ToLowerInvariant().Contains(filter) ||
-           course.CourseNumber.ToString().ToLowerInvariant().Contains(filter) ||
-           (course.Instructors.Any() && course.Instructors.Any(i => i.Name.ToLowerInvariant().Contains(filter)));
-  }
-
-  private async Task RefreshCoursesAsync()
-  {
-    if (string.IsNullOrWhiteSpace(_jwtToken))
-    {
-      _refreshJwtError = "Paste your auth token to refresh courses.";
-      return;
-    }
-
-    try
-    {
-      _refreshJwtError = null;
-      _refreshingCourses = true;
-      await Snow.RefreshCoursesAsync(new SnowTermCode(_termCode), _jwtToken.Trim());
-      _showJwtModal = false;
-      await LoadCoursesAsync();
-    }
-    catch (Exception ex) when (ex is not OperationCanceledException)
-    {
-      _refreshJwtError = $"Refresh failed: {ex.Message}";
-    }
-    finally
-    {
-      _refreshingCourses = false;
-      StateHasChanged();
-    }
-  }
-
-  private void OpenRefreshModalAsync()
-  {
-    _showJwtModal = true;
-    _refreshJwtError = null;
   }
 
   private async Task AssignAsync()
@@ -283,7 +91,7 @@ else
 
       await Discord.AssignCourseToChannelAsync(
         _selectedCourse.Crn,
-        new SnowTermCode(_termCode),
+        _selectedCourse.Term.Code,
         ChannelId,
         role.Id
       );

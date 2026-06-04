@@ -1,0 +1,243 @@
+@using System.Timers
+@using Web.Models.Snow
+@using Web.Services
+@inject SnowCourseService Snow
+
+<div class="search-for-course">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <label class="form-label mb-0" for="course-search-input">Search by name, code, or instructor</label>
+    @if (ShowRefreshButton)
+    {
+      <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_refreshing"
+              @onclick="ShowRefreshInputAsync">
+        Refresh courses
+      </button>
+    }
+  </div>
+
+  <input id="course-search-input" autofocus class="form-control mb-3" placeholder="Search by name, code, or instructor…"
+         @oninput="OnSearchInput" />
+
+  @if (ShowTermSelector)
+  {
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <div class="text-muted small">Term:</div>
+      <div class="d-flex gap-2">
+        @foreach (var term in _availableTerms)
+        {
+          <button class="btn btn-sm @(_selectedTermCode == term.TermCode ? "btn-secondary" : "btn-outline-secondary")"
+                  @onclick="() => SetTermAsync(term.TermCode)">
+            @term.DisplayName
+          </button>
+        }
+      </div>
+    </div>
+  }
+
+  @if (_refreshing)
+  {
+    <div class="d-flex justify-content-center py-3">
+      <div class="spinner-border text-primary" role="status"></div>
+    </div>
+  }
+  else if (_courses.Count == 0)
+  {
+    <p class="text-muted">No courses cached. Use the Courses page to refresh course data first.</p>
+  }
+  else
+  {
+    <div class="d-flex flex-wrap gap-3 mb-3">
+      @foreach (var course in FilteredCourses)
+      {
+        bool isAssigned = AssignedCrns?.Contains(course.Crn) == true;
+        <CourseCard Course="course" IsConfigured="isAssigned" OnSelect="() => SelectCourseAsync(course)" />
+      }
+    </div>
+
+    @if (!FilteredCourses.Any())
+    {
+      <p class="text-muted">No courses match your search.</p>
+    }
+  }
+
+  @if (_showRefreshInput && ShowRefreshButton)
+  {
+    <div class="mt-3 p-3 border rounded">
+      <label class="form-label mb-1 small">Paste my.snow.edu auth token to fetch fresh course data.</label>
+      <div class="d-flex gap-2">
+        <input type="text" @bind-value="_jwtToken" class="form-control font-monospace" placeholder="Paste JWT token…"
+               autocomplete="off" spellcheck="false" />
+        <button type="button" class="btn btn-primary" disabled="@_refreshing || string.IsNullOrWhiteSpace(_jwtToken)"
+                @onclick="RefreshAsync">
+          @if (_refreshing)
+          {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+          }
+          Refresh
+        </button>
+      </div>
+      @if (_refreshError is not null)
+      {
+        <div class="text-danger small mt-2">@_refreshError</div>
+      }
+    </div>
+  }
+</div>
+
+@if (_selectedCourse is not null && SelectedDetailsTemplate is not null)
+{
+  @SelectedDetailsTemplate(_selectedCourse)
+}
+
+@code {
+  [Parameter] public EventCallback<SnowCourse> OnCourseSelected { get; set; }
+  [Parameter] public HashSet<SnowCrn>? AssignedCrns { get; set; }
+  [Parameter] public bool ShowTermSelector { get; set; } = true;
+  [Parameter] public bool ShowRefreshButton { get; set; } = false;
+  [Parameter] public RenderFragment<SnowCourse>? SelectedDetailsTemplate { get; set; }
+
+  private List<SnowCourse> _courses = [];
+  private List<(SnowTermCode TermCode, string DisplayName)> _availableTerms = [];
+  private SnowTermCode? _selectedTermCode;
+  private SnowCourse? _selectedCourse;
+
+  private string _filter = "";
+  private string _pendingFilter = "";
+  private Timer? _debounceTimer;
+  private bool _refreshing;
+  private bool _showRefreshInput;
+  private string _jwtToken = "";
+  private string? _refreshError;
+
+  private static readonly HashSet<string> DefaultDepartments = new(["SE", "CS", "ENGR"]);
+
+  private IEnumerable<SnowCourse> FilteredCourses =>
+    _courses
+      .Where(c => _selectedTermCode is null || c.Term.Code == _selectedTermCode)
+      .Where(c => string.IsNullOrWhiteSpace(_filter) || DefaultDepartments.Contains(c.SubjectCode.Value))
+      .Where(c => MatchesFilter(c, _filter))
+      .OrderBy(c => c.SubjectCode.Value).ThenBy(c => c.CourseNumber.Value)
+      .Take(string.IsNullOrWhiteSpace(_filter) ? 15 : int.MaxValue);
+
+  protected override void OnInitialized()
+  {
+    SnowCourseService.DataChanged += OnDataChanged;
+  }
+
+  public override async Task SetParametersAsync(ParameterView parameters)
+  {
+    await base.SetParametersAsync(parameters);
+    await HydrateCoursesAsync();
+  }
+
+  public void Dispose()
+  {
+    SnowCourseService.DataChanged -= OnDataChanged;
+    _debounceTimer?.Dispose();
+  }
+
+  private async Task OnDataChanged()
+  {
+    await InvokeAsync(async () =>
+    {
+      await HydrateCoursesAsync();
+      StateHasChanged();
+    });
+  }
+
+  private async Task HydrateCoursesAsync()
+  {
+    var termOptions = SnowCourseService.GenerateUpcomingTermOptions().Take(2).ToList();
+    var courseTasks = termOptions.Select(t => Snow.GetCoursesForTermAsync(t.TermCode)).ToList();
+    var results = await Task.WhenAll(courseTasks);
+    _courses = [.. results.SelectMany(r => r)];
+    _availableTerms = termOptions.Where(t => _courses.Any(c => c.Term.Code == t.TermCode)).ToList();
+    _selectedTermCode ??= _availableTerms.LastOrDefault().TermCode;
+  }
+
+  private void OnSearchInput(ChangeEventArgs e)
+  {
+    _pendingFilter = e.Value?.ToString() ?? "";
+    _debounceTimer?.Dispose();
+    _debounceTimer = new Timer(100) { AutoReset = false };
+    _debounceTimer.Elapsed += (_, _) => InvokeAsync(ApplyDebouncedFilter);
+    _debounceTimer.Start();
+  }
+
+  private void ApplyDebouncedFilter()
+  {
+    _filter = _pendingFilter;
+    StateHasChanged();
+  }
+
+  private async Task SelectCourseAsync(SnowCourse course)
+  {
+    _selectedCourse = course;
+    StateHasChanged();
+    await OnCourseSelected.InvokeAsync(course);
+  }
+
+  private void SetTermAsync(SnowTermCode termCode)
+  {
+    _selectedTermCode = termCode;
+    StateHasChanged();
+  }
+
+  private void ShowRefreshInputAsync()
+  {
+    _showRefreshInput = true;
+    _refreshError = null;
+    StateHasChanged();
+  }
+
+  private async Task RefreshAsync()
+  {
+    if (string.IsNullOrWhiteSpace(_jwtToken))
+    {
+      _refreshError = "Paste your auth token before refreshing course data.";
+      return;
+    }
+
+    _refreshError = null;
+    _refreshing = true;
+    StateHasChanged();
+
+    try
+    {
+      await Snow.RefreshCoursesAsync(
+        _selectedTermCode ?? throw new InvalidOperationException("No term selected for course refresh in SearchForCourse."),
+        _jwtToken.Trim());
+      await HydrateCoursesAsync();
+      _showRefreshInput = false;
+    }
+    catch (OperationCanceledException)
+    {
+      throw;
+    }
+    catch (Exception ex)
+    {
+      _refreshError = $"Course refresh failed: {ex.Message}";
+    }
+    finally
+    {
+      _refreshing = false;
+      StateHasChanged();
+    }
+  }
+
+  private static bool MatchesFilter(SnowCourse course, string filter)
+  {
+    if (string.IsNullOrWhiteSpace(filter))
+      return true;
+
+    var f = filter.Trim();
+    var primaryName = (course.Instructors.FirstOrDefault(i => i.PrimaryInstructor) ??
+                       course.Instructors.FirstOrDefault())?.Name ?? "";
+    var code = $"{course.SubjectCode.Value} {course.CourseNumber.Value}";
+
+    return course.Name.Contains(f, StringComparison.OrdinalIgnoreCase)
+      || primaryName.Contains(f, StringComparison.OrdinalIgnoreCase)
+      || course.SubjectCode.Value.Contains(f, StringComparison.OrdinalIgnoreCase)
+      || code.Contains(f, StringComparison.OrdinalIgnoreCase);
+  }
+}

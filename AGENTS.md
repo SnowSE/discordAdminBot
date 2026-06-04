@@ -36,4 +36,4 @@ never use string interpolation in sql statements such as $"INSERT INTO {tableNam
 
 ask clarifying questions when additional decisions need to be made.
 
-
+whenever an action involves editing more than one file, always propose a plan to the user. as me clarifying questions about design whenever needed.
