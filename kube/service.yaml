@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: discordadminbot
-  namespace: snow-discord-bot
+  namespace: discord-bot
 spec:
   selector:
     app: discordadminbot

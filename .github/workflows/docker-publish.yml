@@ -29,7 +29,7 @@ jobs:
         run: |
           tag="${GITHUB_RUN_NUMBER}"
           repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          # Image will be: ghcr.io/<repo>:<run_number> e.g. ghcr.io/alexm/discordadminbot:1
+          # Image will be: ghcr.io/<repo>:<run_number> e.g. ghcr.io/snowse/discordadminbot:1
           dotnet publish --os linux --arch x64 /t:PublishContainer \
             -p:ContainerRegistry=ghcr.io \
             -p:ContainerRepository="$repo" \
