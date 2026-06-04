@@ -1,0 +1,36 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Publish container image
+        run: |
+          tag="${GITHUB_RUN_NUMBER}"
+          repo=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          # Image will be: ghcr.io/<repo>:<run_number> e.g. ghcr.io/alexm/discordadminbot:1
+          dotnet publish --os linux --arch x64 /t:PublishContainer \
+            -p:ContainerRegistry=ghcr.io \
+            -p:ContainerRepository="$repo" \
+            -p:ContainerImageTags="$tag"

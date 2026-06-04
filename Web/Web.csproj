@@ -6,6 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ContainerEnvironmentVariable Include="ASPNETCORE_URLS" Value="http://+:8080" />
+    <ContainerPort Include="8080" Type="tcp" />
     <PackageReference Include="Dapper" Version="2.1.79" />
     <PackageReference Include="dotenv.net" Version="4.0.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.8" />
