@@ -25,8 +25,12 @@ else
           <div class="alert alert-danger py-2 mb-3">@_error</div>
         }
 
-        <SearchForCourse ShowRefreshButton="true" OnCourseSelected="OnCourseSelected"
-                         SelectedDetailsTemplate="@SelectedSummaryTemplate" />
+        <SearchForCourse ShowRefreshButton="true" OnCourseSelected="OnCourseSelected" />
+
+        @if (_selectedCourse is not null)
+        {
+          @SelectedSummaryTemplate(_selectedCourse)
+        }
 
       </div>
       <div class="modal-footer">

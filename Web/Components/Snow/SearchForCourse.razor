@@ -84,22 +84,15 @@
   }
 </div>
 
-@if (_selectedCourse is not null && SelectedDetailsTemplate is not null)
-{
-  @SelectedDetailsTemplate(_selectedCourse)
-}
-
 @code {
   [Parameter] public EventCallback<SnowCourse> OnCourseSelected { get; set; }
   [Parameter] public HashSet<SnowCrn>? AssignedCrns { get; set; }
   [Parameter] public bool ShowTermSelector { get; set; } = true;
   [Parameter] public bool ShowRefreshButton { get; set; } = false;
-  [Parameter] public RenderFragment<SnowCourse>? SelectedDetailsTemplate { get; set; }
 
   private List<SnowCourse> _courses = [];
   private List<(SnowTermCode TermCode, string DisplayName)> _availableTerms = [];
   private SnowTermCode? _selectedTermCode;
-  private SnowCourse? _selectedCourse;
 
   private string _filter = "";
   private string _pendingFilter = "";
@@ -172,8 +165,6 @@
 
   private async Task SelectCourseAsync(SnowCourse course)
   {
-    _selectedCourse = course;
-    StateHasChanged();
     await OnCourseSelected.InvokeAsync(course);
   }
 

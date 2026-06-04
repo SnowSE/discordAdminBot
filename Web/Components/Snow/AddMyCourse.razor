@@ -12,8 +12,12 @@
     <button class="btn btn-outline-secondary" @onclick="OnCancel">Cancel</button>
   </div>
 
-  <SearchForCourse AssignedCrns="_assignedCrns" OnCourseSelected="SelectCourse"
-                   SelectedDetailsTemplate="@ChannelSetupTemplate" />
+  <SearchForCourse AssignedCrns="_assignedCrns" OnCourseSelected="SelectCourse" />
+
+  @if (_selectedCourse is not null)
+  {
+    @ChannelSetupTemplate(_selectedCourse)
+  }
 </div>
 
 @code {

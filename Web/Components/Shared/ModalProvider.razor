@@ -1,3 +1,4 @@
+@using Microsoft.AspNetCore.Components.Web
 @namespace Web.Components.Shared
 @rendermode InteractiveServer
 
@@ -5,7 +6,18 @@
   @ChildContent
   @if (Context.IsOpen)
   {
-    <div class="modal-backdrop-custom">@Context.Content</div>
+    <style>
+        html,
+        body {
+          overflow: hidden !important;
+        }
+    </style>
+    <div class="modal-backdrop-custom" onclick:stopPropagation="false" @onclick="OnBackdropClick" @onkeydown="OnKeyDown"
+         tabindex="0">
+      <div class="modal-card" @onclick:stopPropagation="true">
+        @Context.Content
+      </div>
+    </div>
   }
 </CascadingValue>
 
@@ -17,5 +29,18 @@
   protected override void OnInitialized()
   {
     Context.OnChange = () => InvokeAsync(StateHasChanged);
+  }
+
+  private void OnBackdropClick()
+  {
+    Context.Close();
+  }
+
+  private void OnKeyDown(KeyboardEventArgs args)
+  {
+    if (args.Key == "Escape")
+    {
+      Context.Close();
+    }
   }
 }
