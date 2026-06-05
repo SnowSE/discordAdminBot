@@ -81,7 +81,7 @@
   private GuildRole? RequiredRole => AllRoles.FirstOrDefault(r => r.Id == RequiredRoleId);
 
   private List<GuildRole> MemberRoles => AllRoles
-      .Where(r => MemberRoleIds.Contains(r.Id.Value))
+      .Where(r => MemberRoleIds.Contains(r.Id.Value) && r.Name.Value != "@everyone")
       .OrderBy(r => r.Position)
       .ToList();
 
