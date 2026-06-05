@@ -15,7 +15,7 @@
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Sync All Course Channels</h5>
+            <h5 class="modal-title">Refresh Course Rosters</h5>
             <button type="button" class="btn-close" @onclick="CloseSyncAllModal"></button>
           </div>
           <div class="modal-body">
@@ -31,7 +31,7 @@
                 {
                   <span class="spinner-border spinner-border-sm me-1"></span>
                 }
-                Sync @_courseChannels.Count Course@(_courseChannels.Count != 1 ? "s" : "")
+                Refresh @_courseChannels.Count Roster@(_courseChannels.Count != 1 ? "s" : "")
               </button>
             </div>
           </div>
@@ -323,7 +323,7 @@ viewChannelBit) != 0);
   {
     if (string.IsNullOrWhiteSpace(_syncModel.JwtToken))
     {
-      _syncError = "Enter JWT token before syncing channels.";
+      _syncError = "Enter JWT token before refreshing rosters.";
       return;
     }
 
@@ -335,7 +335,7 @@ viewChannelBit) != 0);
     {
       foreach (var assignment in _courseChannels)
       {
-        await Discord.SyncCourseChannelAsync(assignment.Crn, assignment.TermCode, _syncModel.JwtToken.Trim());
+        await Snow.RefreshSectionStudentsAsync(assignment.TermCode, assignment.Crn, _syncModel.JwtToken.Trim());
       }
       await HydrateAsync();
       CloseSyncAllModal();

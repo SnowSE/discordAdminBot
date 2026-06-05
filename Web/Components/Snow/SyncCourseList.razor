@@ -50,7 +50,7 @@
       <path
       d="M4.5 3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1H5a.5.5 0 0 1-.5-.5zM3 6a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6z" />
     </svg>
-    Sync course list
+    Download Course List for Term
   </button>
 </div>
 
@@ -66,8 +66,9 @@
 
   protected override void OnInitialized()
   {
-    _termOptions = SnowCourseService.GenerateUpcomingTermOptions();
-    _model.TermCode = _termOptions[0].TermCode.Value;
+    var (terms, currentIndex) = SnowCourseService.GenerateTermOptionsWithCurrent();
+    _termOptions = terms;
+    _model.TermCode = _termOptions[currentIndex].TermCode.Value;
   }
 
   private void OpenModal()

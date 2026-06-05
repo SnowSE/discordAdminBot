@@ -167,30 +167,81 @@ public class SnowCourseService(IHttpClientFactory httpClientFactory, SnowCourseD
     return $"{semesterName} {year}";
   }
 
-  public static List<(SnowTermCode TermCode, string DisplayName)> GenerateUpcomingTermOptions()
+  public static (
+    List<(SnowTermCode TermCode, string DisplayName)> Terms,
+    int CurrentTermIndex
+  ) GenerateTermOptionsWithCurrent()
   {
     var now = DateTime.UtcNow;
-    int year = now.Year;
-    int semesterCode = now.Month switch
+    (int year, int semesterCode) = GetCurrentTerm(now);
+
+    // Start 3 semesters before the current term so the list includes previous-year terms.
+    int startYear = year;
+    int startSemester = semesterCode;
+    for (int i = 0; i < 3; i++)
+    {
+      (startYear, startSemester) = PreviousTerm(startYear, startSemester);
+    }
+
+    var terms = new List<(SnowTermCode TermCode, string DisplayName)>();
+    int currentTermIndex = -1;
+
+    // Walk forward chronologically: 3 past + current + 6 future = 10 terms total.
+    for (int i = 0; i < 10; i++)
+    {
+      if (startYear == year && startSemester == semesterCode)
+      {
+        currentTermIndex = i;
+      }
+
+      SnowTermCode code = $"{startYear}{startSemester:D2}";
+      terms.Add((code, BuildTermDisplayName(code)));
+
+      (startYear, startSemester) = NextTerm(startYear, startSemester);
+    }
+
+    if (currentTermIndex < 0)
+    {
+      throw new InvalidOperationException(
+        "Current semester was not found while generating term options list"
+      );
+    }
+
+    return (terms, currentTermIndex);
+  }
+
+  private static (int Year, int Semester) GetCurrentTerm(DateTime date)
+  {
+    int year = date.Year;
+    int semesterCode = date.Month switch
     {
       >= 1 and <= 5 => 10,
       >= 6 and <= 8 => 30,
       _ => 40,
     };
+    return (year, semesterCode);
+  }
 
-    var terms = new List<(SnowTermCode TermCode, string DisplayName)>();
-    for (int i = 0; i < 4; i++)
+  private static (int Year, int Semester) NextTerm(int year, int semesterCode)
+  {
+    return semesterCode switch
     {
-      SnowTermCode code = $"{year}{semesterCode:D2}";
-      terms.Add((code, BuildTermDisplayName(code)));
+      10 => (year, 30),
+      30 => (year, 40),
+      _ => (year + 1, 10),
+    };
+  }
 
-      (semesterCode, year) = semesterCode switch
-      {
-        10 => (30, year),
-        30 => (40, year),
-        _ => (10, year + 1),
-      };
-    }
-    return terms;
+  private static (int Year, int Semester) PreviousTerm(int year, int semesterCode)
+  {
+    return semesterCode switch
+    {
+      30 => (year, 10),
+      40 => (year, 30),
+      10 => (year - 1, 40),
+      _ => throw new InvalidOperationException(
+        $"Unexpected semester code '{semesterCode}' when computing previous term"
+      ),
+    };
   }
 }

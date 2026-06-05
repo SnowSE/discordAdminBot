@@ -44,8 +44,9 @@
 
   protected override void OnInitialized()
   {
-    _termOptions = SnowCourseService.GenerateUpcomingTermOptions();
-    _model.TermCode = _termOptions[0].TermCode.Value;
+    var (terms, currentIndex) = SnowCourseService.GenerateTermOptionsWithCurrent();
+    _termOptions = terms;
+    _model.TermCode = _termOptions[currentIndex].TermCode.Value;
   }
 
   private async Task RefreshAsync()

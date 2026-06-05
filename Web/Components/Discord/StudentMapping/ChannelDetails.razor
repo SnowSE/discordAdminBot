@@ -199,7 +199,8 @@
 
   private RenderFragment BuildAssignDialogContent()
   {
-    return @<AssignCourseDialog ChannelId="Channel.Id" AvailableRoles="AllRoles" OnAssigned="OnCourseAssigned" />;
+    var displayName = Channel.Name?.Value ?? $"Channel {Channel.Id.Value}";
+    return @<AssignCourseDialog ChannelId="Channel.Id" ChannelName="@displayName" AvailableRoles="AllRoles"  OnAssigned="OnCourseAssigned" />;
   }
 
   private void OnCourseAssigned()

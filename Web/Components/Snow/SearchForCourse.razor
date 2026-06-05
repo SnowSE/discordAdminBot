@@ -3,20 +3,10 @@
 @using Web.Services
 @inject SnowCourseService Snow
 
-<div class="search-for-course">
-  <div class="d-flex justify-content-between align-items-center mb-2">
-    <label class="form-label mb-0" for="course-search-input">Search by name, code, or instructor</label>
-    @if (ShowRefreshButton)
-    {
-      <button type="button" class="btn btn-sm btn-outline-secondary" disabled="@_refreshing"
-              @onclick="ShowRefreshInputAsync">
-        Refresh courses
-      </button>
-    }
-  </div>
+<div class=" ">
 
-  <input id="course-search-input" autofocus class="form-control mb-3" placeholder="Search by name, code, or instructor…"
-         @oninput="OnSearchInput" />
+  <input id="course-search-input" @ref="_searchInputElement" class="form-control mb-3"
+         placeholder="Search by name, code, or instructor…" @oninput="OnSearchInput" />
 
   @if (ShowTermSelector)
   {
@@ -34,15 +24,9 @@
     </div>
   }
 
-  @if (_refreshing)
+  @if (_courses.Count == 0)
   {
-    <div class="d-flex justify-content-center py-3">
-      <div class="spinner-border text-primary" role="status"></div>
-    </div>
-  }
-  else if (_courses.Count == 0)
-  {
-    <p class="text-muted">No courses cached. Use the Courses page to refresh course data first.</p>
+    <p class="text-muted">No courses found for the selected term.</p>
   }
   else
   {
@@ -59,36 +43,12 @@
       <p class="text-muted">No courses match your search.</p>
     }
   }
-
-  @if (_showRefreshInput && ShowRefreshButton)
-  {
-    <div class="mt-3 p-3 border rounded">
-      <label class="form-label mb-1 small">Paste my.snow.edu auth token to fetch fresh course data.</label>
-      <div class="d-flex gap-2">
-        <input type="text" @bind-value="_jwtToken" class="form-control font-monospace" placeholder="Paste JWT token…"
-               autocomplete="off" spellcheck="false" />
-        <button type="button" class="btn btn-primary" disabled="@_refreshing || string.IsNullOrWhiteSpace(_jwtToken)"
-                @onclick="RefreshAsync">
-          @if (_refreshing)
-          {
-            <span class="spinner-border spinner-border-sm me-1"></span>
-          }
-          Refresh
-        </button>
-      </div>
-      @if (_refreshError is not null)
-      {
-        <div class="text-danger small mt-2">@_refreshError</div>
-      }
-    </div>
-  }
 </div>
 
 @code {
   [Parameter] public EventCallback<SnowCourse> OnCourseSelected { get; set; }
   [Parameter] public HashSet<SnowCrn>? AssignedCrns { get; set; }
   [Parameter] public bool ShowTermSelector { get; set; } = true;
-  [Parameter] public bool ShowRefreshButton { get; set; } = false;
 
   private List<SnowCourse> _courses = [];
   private List<(SnowTermCode TermCode, string DisplayName)> _availableTerms = [];
@@ -97,10 +57,7 @@
   private string _filter = "";
   private string _pendingFilter = "";
   private Timer? _debounceTimer;
-  private bool _refreshing;
-  private bool _showRefreshInput;
-  private string _jwtToken = "";
-  private string? _refreshError;
+  private ElementReference _searchInputElement;
 
   private static readonly HashSet<string> DefaultDepartments = new(["SE", "CS", "ENGR"]);
 
@@ -109,12 +66,21 @@
       .Where(c => _selectedTermCode is null || c.Term.Code == _selectedTermCode)
       .Where(c => string.IsNullOrWhiteSpace(_filter) || DefaultDepartments.Contains(c.SubjectCode.Value))
       .Where(c => MatchesFilter(c, _filter))
-      .OrderBy(c => c.SubjectCode.Value).ThenBy(c => c.CourseNumber.Value)
+      .OrderBy(c => DefaultDepartments.Contains(c.SubjectCode.Value) ? 0 : 1)
+      .ThenBy(c => c.SubjectCode.Value).ThenBy(c => c.CourseNumber.Value)
       .Take(string.IsNullOrWhiteSpace(_filter) ? 15 : int.MaxValue);
 
   protected override void OnInitialized()
   {
     SnowCourseService.DataChanged += OnDataChanged;
+  }
+
+  protected override async Task OnAfterRenderAsync(bool firstRender)
+  {
+    if (firstRender)
+    {
+      await _searchInputElement.FocusAsync();
+    }
   }
 
   public override async Task SetParametersAsync(ParameterView parameters)
@@ -140,11 +106,11 @@
 
   private async Task HydrateCoursesAsync()
   {
-    var termOptions = SnowCourseService.GenerateUpcomingTermOptions().Take(2).ToList();
-    var courseTasks = termOptions.Select(t => Snow.GetCoursesForTermAsync(t.TermCode)).ToList();
+    var (terms, currentIndex) = SnowCourseService.GenerateTermOptionsWithCurrent();
+    var courseTasks = terms.Select(t => Snow.GetCoursesForTermAsync(t.TermCode)).ToList();
     var results = await Task.WhenAll(courseTasks);
     _courses = [.. results.SelectMany(r => r)];
-    _availableTerms = termOptions.Where(t => _courses.Any(c => c.Term.Code == t.TermCode)).ToList();
+    _availableTerms = terms.Where(t => _courses.Any(c => c.Term.Code == t.TermCode)).ToList();
     _selectedTermCode ??= _availableTerms.LastOrDefault().TermCode;
   }
 
@@ -174,47 +140,6 @@
     StateHasChanged();
   }
 
-  private void ShowRefreshInputAsync()
-  {
-    _showRefreshInput = true;
-    _refreshError = null;
-    StateHasChanged();
-  }
-
-  private async Task RefreshAsync()
-  {
-    if (string.IsNullOrWhiteSpace(_jwtToken))
-    {
-      _refreshError = "Paste your auth token before refreshing course data.";
-      return;
-    }
-
-    _refreshError = null;
-    _refreshing = true;
-    StateHasChanged();
-
-    try
-    {
-      await Snow.RefreshCoursesAsync(
-        _selectedTermCode ?? throw new InvalidOperationException("No term selected for course refresh in SearchForCourse."),
-        _jwtToken.Trim());
-      await HydrateCoursesAsync();
-      _showRefreshInput = false;
-    }
-    catch (OperationCanceledException)
-    {
-      throw;
-    }
-    catch (Exception ex)
-    {
-      _refreshError = $"Course refresh failed: {ex.Message}";
-    }
-    finally
-    {
-      _refreshing = false;
-      StateHasChanged();
-    }
-  }
 
   private static bool MatchesFilter(SnowCourse course, string filter)
   {

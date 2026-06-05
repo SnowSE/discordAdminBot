@@ -16,63 +16,62 @@
 
   @if (_selectedCourse is not null)
   {
-    @ChannelSetupTemplate(_selectedCourse)
+    <div class="card mb-4" style="max-width:480px">
+      <div class="card-header py-2 d-flex justify-content-between align-items-center">
+        <strong>@_selectedCourse.SubjectCode @_selectedCourse.CourseNumber – @_selectedCourse.SectionNumber</strong>
+        <span class="text-muted">@_selectedCourse.Name</span>
+      </div>
+      <div class="card-body">
+
+        <div class="mb-3">
+          <label class="form-label mb-1">Channel name (human readable)</label>
+          <input class="form-control font-monospace" @bind="_channelName" />
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label mb-1">Category (Graduating Class to group by)</label>
+          <ButtonGroup @bind-Value="_selectedCategoryId" Options="_categories" IdSelector="c => c.Id.Value"
+                       LabelSelector="c => c.Name?.Value ?? c.Id.Value" />
+          <button class="btn btn-outline-secondary mt-2" @onclick="() => _showNewCategory = true">
+            + New category…
+          </button>
+          @if (_showNewCategory)
+          {
+            <input class="form-control mt-2" placeholder="Category name" @bind="_newCategoryName" />
+          }
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label mb-1">Student role (permission visibility)</label>
+          <ButtonGroup @bind-Value="_selectedRoleId" Options="_roles" IdSelector="r => r.Id"
+                       LabelSelector="r => r.Name" />
+        </div>
+
+        <div class="mb-3 form-check">
+          <input type="checkbox" class="form-check-input" id="isPrivateCheckbox" @bind="_isPrivate" />
+          <label class="form-check-label" for="isPrivateCheckbox">
+            Private (@(_showNewCategory ? "category and channel" : "channel") will require role access)
+          </label>
+        </div>
+
+        @if (_errorMessage is not null)
+        {
+          <div class="text-danger mb-2">@_errorMessage</div>
+        }
+
+        <button class="btn btn-primary" disabled="@_saving || _selectedCourse is null" @onclick="SetupChannelAsync">
+          @if (_saving)
+          {
+            <span class="spinner-border spinner-border-sm me-1"></span>
+          }
+          Create Channel
+        </button>
+      </div>
+    </div>
   }
 </div>
 
 @code {
-  private RenderFragment<SnowCourse> ChannelSetupTemplate => course => @<div class="card mb-4" style="max-width:480px">
-    <div class="card-header py-2 d-flex justify-content-between align-items-center">
-      <strong>@course.SubjectCode @course.CourseNumber – @course.SectionNumber</strong>
-      <span class="text-muted">@course.Name</span>
-    </div>
-    <div class="card-body">
-
-      <div class="mb-3">
-        <label class="form-label mb-1">Channel name (human readable)</label>
-        <input class="form-control font-monospace" @bind="_channelName" />
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label mb-1">Category (Graduating Class to group by)</label>
-        <ButtonGroup @bind-Value="_selectedCategoryId" Options="_categories" IdSelector="c => c.Id.Value"
-                     LabelSelector="c => c.Name?.Value ?? c.Id.Value" />
-        <button class="btn btn-outline-secondary mt-2" @onclick="() => _showNewCategory = true">
-          + New category…
-        </button>
-        @if (_showNewCategory)
-        {
-          <input class="form-control mt-2" placeholder="Category name" @bind="_newCategoryName" />
-        }
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label mb-1">Student role (permission visibility)</label>
-        <ButtonGroup @bind-Value="_selectedRoleId" Options="_roles" IdSelector="r => r.Id" LabelSelector="r => r.Name" />
-      </div>
-
-      <div class="mb-3 form-check">
-        <input type="checkbox" class="form-check-input" id="isPrivateCheckbox" @bind="_isPrivate" />
-        <label class="form-check-label" for="isPrivateCheckbox">
-          Private (@(_showNewCategory ? "category and channel" : "channel") will require role access)
-        </label>
-      </div>
-
-      @if (_errorMessage is not null)
-      {
-        <div class="text-danger mb-2">@_errorMessage</div>
-      }
-
-      <button class="btn btn-primary" disabled="@_saving || _selectedCourse is null" @onclick="SetupChannelAsync">
-        @if (_saving)
-        {
-          <span class="spinner-border spinner-border-sm me-1"></span>
-        }
-        Create Channel
-      </button>
-    </div>
-  </div>;
-
   [CascadingParameter] protected LoadingBoundaryContext? Loading { get; set; }
   [Parameter] public EventCallback OnCancel { get; set; }
 

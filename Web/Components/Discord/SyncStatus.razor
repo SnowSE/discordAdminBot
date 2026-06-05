@@ -3,7 +3,7 @@
 @inject DiscordService Discord
 
 <form @onsubmit="SyncAsync" @onsubmit:preventDefault class="d-flex flex-column  gap-2 ">
-  <button class="btn btn-outline-secondary btn-sm h-100" type="submit" disabled="@_syncing">
+  <button class="btn btn-outline-secondary  h-100" type="submit" disabled="@_syncing">
     @if (_syncing)
     {
       <span class="spinner-border spinner-border-sm me-1 "></span>

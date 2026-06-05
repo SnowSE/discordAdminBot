@@ -13,29 +13,31 @@
 else
 {
   <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Assign Course to Channel</h5>
+    <div class="modal-content h-100 d-flex flex-column" style="max-height: calc(90vh - 3rem)">
+      <div class="modal-header d-flex justify-content-between" style="flex-shrink: 0">
+        <h5 class="modal-title">Assign Course to @ChannelName</h5>
         <button type="button" class="btn-close" @onclick="CancelAsync"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body" style="overflow-y: auto; min-height: 0;">
 
         @if (_error is not null)
         {
           <div class="alert alert-danger py-2 mb-3">@_error</div>
         }
 
-        <SearchForCourse ShowRefreshButton="true" OnCourseSelected="OnCourseSelected" />
+        <SearchForCourse OnCourseSelected="OnCourseSelected" />
 
         @if (_selectedCourse is not null)
         {
-          @SelectedSummaryTemplate(_selectedCourse)
+          <div class="alert alert-success py-2 mb-3">
+            Selected: <strong>@_selectedCourse.Name</strong> (CRN: @_selectedCourse.Crn)
+          </div>
         }
 
       </div>
-      <div class="modal-footer">
+      <div class="modal-footer gap-2" style="flex-shrink: 0">
         <button type="button" class="btn btn-secondary" @onclick="CancelAsync">Cancel</button>
-        <button type="button" class="btn btn-primary" disabled="@_selectedCourse is null || _assigning"
+        <button type="button" class="btn btn-primary" disabled="@(_selectedCourse is null || _assigning)"
                 @onclick="AssignAsync">
           @if (_assigning)
           {
@@ -49,14 +51,11 @@ else
 }
 
 @code {
-  private RenderFragment<SnowCourse> SelectedSummaryTemplate => course => @<div class="alert alert-success py-2 mb-3">
-    Selected: <strong>@course.Name</strong> (CRN: @course.Crn)
-  </div>;
-
   [CascadingParameter(Name = "ModalContext")]
   public required ModalContext Modal { get; set; }
 
   [Parameter] public required DiscordChannelId ChannelId { get; set; }
+  [Parameter] public required string ChannelName { get; set; }
   [Parameter] public required List<GuildRole> AvailableRoles { get; set; }
   [Parameter] public required Action OnAssigned { get; set; }
 
