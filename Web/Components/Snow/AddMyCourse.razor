@@ -12,7 +12,7 @@
     <button class="btn btn-outline-secondary" @onclick="OnCancel">Cancel</button>
   </div>
 
-  <SearchForCourse AssignedCrns="_assignedCrns" InitialSearchQuery="InitialSearchQuery"
+  <SearchForCourse AssignedCrns="_assignedCrns" InitialSearchQuery="@InitialSearchQuery"
                    OnCourseSelected="SelectCourse" />
 
   @if (_selectedCourse is not null)
