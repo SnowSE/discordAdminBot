@@ -91,6 +91,60 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
     DbDataChanged?.Invoke();
   }
 
+  public async Task<List<GuildRole>> GetRolesBotIsMissingAsync()
+  {
+    var botUserTask = db.GetBotUserAsync();
+    var membersTask = db.GetMembersAsync();
+    var rolesTask = db.GetRolesAsync();
+
+    await Task.WhenAll(botUserTask, membersTask, rolesTask);
+
+    var botUser =
+      botUserTask.Result
+      ?? throw new InvalidOperationException(
+        "Bot user is not synced yet while determining missing roles."
+      );
+    var members = membersTask.Result;
+    var botMember = members.FirstOrDefault(m => m.User?.Id == botUser.Id);
+    var botRoleIds = botMember?.Roles ?? [];
+
+    var roles = rolesTask.Result;
+    return [.. roles.Where(r => !botRoleIds.Contains(r.Id) && r.Name.Value.StartsWith("Class"))];
+  }
+
+  public async Task AddRoleToBotAsync(DiscordRoleId roleId, CancellationToken ct = default)
+  {
+    var botUser = await db.GetBotUserAsync();
+    if (botUser is null)
+    {
+      throw new InvalidOperationException("Bot user is not synced yet while adding role to bot.");
+    }
+
+    await api.AddRoleToMemberAsync(botUser.Id.Value, roleId.Value, ct);
+    await SyncAllAsync(ct);
+  }
+
+  public async Task AddAllMissingRolesToBotAsync(
+    List<DiscordRoleId> roleIds,
+    CancellationToken ct = default
+  )
+  {
+    var botUser = await db.GetBotUserAsync();
+    if (botUser is null)
+    {
+      throw new InvalidOperationException(
+        "Bot user identity not found while adding multiple roles to the bot."
+      );
+    }
+
+    foreach (var roleId in roleIds)
+    {
+      await api.AddRoleToMemberAsync(botUser.Id.Value, roleId.Value, ct);
+    }
+
+    await SyncAllAsync(ct);
+  }
+
   public async Task DeleteShareAsync(string inviteCode, CancellationToken ct = default)
   {
     await api.DeleteInviteAsync(inviteCode, ct);

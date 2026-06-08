@@ -1,0 +1,83 @@
+@using Web.Models
+@using Web.Services
+@using Web.Components.Shared
+@inject DiscordService Discord
+
+@if (_rolesToAssign.Count > 0)
+{
+  <div class="bg-body-tertiary p-3 rounded border mb-4">
+    <h5 class="mb-2">Add Bot to Missing Roles</h5>
+    <p class="text-muted small mb-2">
+      The bot needs to be a member of each role to manage channel permissions for that role.
+    </p>
+    <button class="btn btn-primary  mb-3" @onclick="AddAllRolesAsync" disabled="@_addingAll">
+      @if (_addingAll)
+      {
+        <span class="spinner-border spinner-border-sm me-1"></span>
+      }
+      Add to All (@_rolesToAssign.Count)
+    </button>
+    <div class="d-flex flex-wrap gap-2 align-items-start">
+      @foreach (var role in _rolesToAssign)
+      {
+        <span hidden="@_addedRoleIds.Contains(role.Id)">
+          <button class="btn btn-outline-primary  d-inline-flex align-items-center gap-2"
+                  @onclick="(() => AddRoleAsync(role))">
+            <span style="color: #@(role.Color.ToHexString())" aria-hidden="true">#</span>
+            @role.Name
+          </button>
+        </span>
+      }
+    </div>
+  </div>
+}
+
+@code {
+  [CascadingParameter]
+  protected LoadingBoundaryContext? Loading { get; set; }
+
+  private List<GuildRole> _rolesToAssign = [];
+  private HashSet<DiscordRoleId> _addedRoleIds = [];
+  private bool _addingAll = false;
+
+  protected override async Task OnInitializedAsync()
+  {
+    DiscordService.DbDataChanged += Hydrate;
+    using (Loading?.Start())
+    {
+      await Hydrate();
+    }
+  }
+
+  public void Dispose()
+  {
+    DiscordService.DbDataChanged -= Hydrate;
+  }
+
+  private async Task Hydrate()
+  {
+    _rolesToAssign = await Discord.GetRolesBotIsMissingAsync();
+    _addedRoleIds.Clear();
+    _addingAll = false;
+    StateHasChanged();
+  }
+
+  private async Task AddRoleAsync(GuildRole role)
+  {
+    using (Loading?.Start())
+    {
+      await Discord.AddRoleToBotAsync(role.Id);
+    }
+  }
+
+  private async Task AddAllRolesAsync()
+  {
+    _addingAll = true;
+    StateHasChanged();
+
+    using (Loading?.Start())
+    {
+      await Discord.AddAllMissingRolesToBotAsync(_rolesToAssign.Select(r => r.Id).ToList());
+    }
+  }
+}
