@@ -6,7 +6,7 @@
   transition: all 0.3s ease;
 }
 
-.expandable:hover {
+.expandable:not(.expanded):hover {
   transform: translateX(2px);
 }
 
@@ -18,7 +18,7 @@
   transition: all 0.3s ease;
 }
 
-.expandable-header:hover {
+.expandable-header:hover, .expanded .expandable-header {
   background-color: rgba(var(--bs-primary-rgb), 0.08);
   border-color: rgba(var(--bs-primary-rgb), 0.2);
 }
