@@ -248,4 +248,54 @@ public class SnowCourseDb(CacheDb cache)
 
     return result;
   }
+
+  public async Task<
+    Dictionary<(SnowCrn Crn, SnowTermCode TermCode), int>
+  > GetUnmappedStudentCountsBatchAsync(
+    List<(SnowCrn Crn, SnowTermCode TermCode)> assignments,
+    HashSet<string> mappedBadgerIds
+  )
+  {
+    if (assignments.Count == 0)
+      return [];
+
+    await using var scope = cache.OpenSession();
+    var conn = scope.Session.Connection;
+    var tx = scope.Session.Transaction;
+
+    var result = new Dictionary<(SnowCrn, SnowTermCode), int>();
+    foreach (var (crn, termCode) in assignments)
+      result[(crn, termCode)] = 0;
+
+    foreach (var (crn, termCode) in assignments.Distinct())
+    {
+      var rows = await conn.QueryAsync<string>(
+        "SELECT data FROM snow_section_students WHERE crn = @crn AND term_code = @termCode",
+        new { crn = crn.Value, termCode = termCode.Value },
+        transaction: tx
+      );
+
+      var count = 0;
+      foreach (var json in rows)
+      {
+        try
+        {
+          var student = JsonSerializer.Deserialize<SnowSectionStudent>(json, JsonOptions);
+          if (student?.BadgerId is not null && !mappedBadgerIds.Contains(student.BadgerId.Value))
+            count++;
+        }
+        catch (JsonException ex)
+        {
+          Console.WriteLine(
+            $"Failed to deserialize snow_section_students row for crn '{crn}' term_code '{termCode}'. "
+              + $"Error: {ex.Message}"
+          );
+        }
+      }
+
+      result[(crn, termCode)] = count;
+    }
+
+    return result;
+  }
 }

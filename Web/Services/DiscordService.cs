@@ -6,6 +6,7 @@ namespace Web.Services;
 public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow)
 {
   public static event Func<Task>? DbDataChanged;
+  public static event Func<Task>? StudentMappingChanged;
 
   public async Task SyncAllAsync(CancellationToken ct = default)
   {
@@ -299,12 +300,11 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
     await snow.RefreshSectionStudentsAsync(termCode, crn, jwtToken, ct);
 
     var assignments = await GetCourseChannelAssignmentsAsync();
-    var assignment = assignments.FirstOrDefault(a => a.Crn == crn);
-    if (assignment is null)
-      throw new InvalidOperationException(
+    var assignment =
+      assignments.FirstOrDefault(a => a.Crn == crn)
+      ?? throw new InvalidOperationException(
         $"No course-channel assignment found for CRN '{crn}' while syncing section students to Discord."
       );
-
     var cachedStudents = await snow.GetCachedSectionStudentsAsync(crn, termCode);
     var members = await GetMembersAsync();
     var mappings = await db.GetStudentDiscordMappingsAsync();
@@ -333,11 +333,22 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
     List<(SnowBadgerId BadgerId, DiscordUserId DiscordUserId)>
   > GetStudentDiscordMappingsAsync() => db.GetStudentDiscordMappingsAsync();
 
-  public Task SaveStudentDiscordMappingAsync(SnowBadgerId badgerId, DiscordUserId discordUserId) =>
-    db.SaveStudentDiscordMappingAsync(badgerId, discordUserId);
+  public async Task SaveStudentDiscordMappingAsync(
+    SnowBadgerId badgerId,
+    DiscordUserId discordUserId
+  )
+  {
+    await db.SaveStudentDiscordMappingAsync(badgerId, discordUserId);
+    if (StudentMappingChanged is not null)
+      await StudentMappingChanged();
+  }
 
-  public Task DeleteStudentDiscordMappingAsync(SnowBadgerId badgerId) =>
-    db.DeleteStudentDiscordMappingAsync(badgerId);
+  public async Task DeleteStudentDiscordMappingAsync(SnowBadgerId badgerId)
+  {
+    await db.DeleteStudentDiscordMappingAsync(badgerId);
+    if (StudentMappingChanged is not null)
+      await StudentMappingChanged();
+  }
 
   /// <summary>Formats a sync timestamp into a human-readable display string (e.g., "synced 2h ago").</summary>
   public static string? FormatSyncStatus(DateTime? lastSyncedAt)

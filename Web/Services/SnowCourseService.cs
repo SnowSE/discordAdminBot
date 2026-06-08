@@ -146,6 +146,17 @@ public class SnowCourseService(IHttpClientFactory httpClientFactory, SnowCourseD
     return await db.GetSyncTimesBatchAsync(pairs);
   }
 
+  public async Task<
+    Dictionary<(SnowCrn Crn, SnowTermCode TermCode), int>
+  > GetUnmappedStudentCountsBatchAsync(
+    List<CourseChannelAssignment> assignments,
+    HashSet<string> mappedBadgerIds
+  )
+  {
+    var pairs = assignments.Select(a => (a.Crn, a.TermCode)).ToList();
+    return await db.GetUnmappedStudentCountsBatchAsync(pairs, mappedBadgerIds);
+  }
+
   public static string BuildTermDisplayName(SnowTermCode termCode)
   {
     if (termCode.Value.Length < 6)

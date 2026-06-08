@@ -12,7 +12,9 @@
     <div class="d-flex align-items-center m-1">
       @if (!IsMapped)
       {
-        <button class="btn btn-outline-primary" @onclick="ToggleAssignPanel">Match to Discord User</button>
+        <button class="btn btn-outline-primary" @onclick="ToggleAssignPanel">
+          @(IsShowingAssignPanel ? "Hide Search Panel" : "Match to Discord User")
+        </button>
       }
       else if (IsConfirmingUnassign)
       {
@@ -54,7 +56,7 @@
 
             if (discordUserId == null) continue;
 
-            <div class="d-flex flex-column px-1 py-2 rounded assign-member-row"
+            <div class="d-flex flex-column px-1 py-2 rounded assign-member-row" type="button"
                  @onclick="() => AssignStudentAsync(discordUserId.Value)">
               <span class="text-truncate">@member.DisplayName</span>
               <span class="text-muted ps-3">

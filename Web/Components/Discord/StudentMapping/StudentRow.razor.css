@@ -1,0 +1,9 @@
+.assign-member-row:hover {
+  background-color: var(--bs-secondary-bg);
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.assign-member-row {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease-in-out;
+}

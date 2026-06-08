@@ -1,0 +1,115 @@
+@using Web.Components.Discord.StudentMapping
+@using Web.Models
+@using Web.Models.Snow
+@using Web.Components.Shared
+@using Web.Components.Shared.Icons
+
+@if (IsPrivate)
+{
+  <Expandable>
+    <Header>
+      <LockIcon CssClass="text-secondary" Title="Private channel - requires role access" />
+      <span class="fw-medium">#@(Channel.Name?.Value ?? "unnamed")</span>
+      <span class="text-muted small">@Channel.TypeName</span>
+      @foreach (var overwriteRoleName in RoleOverwrites)
+      {
+        <span class="badge text-body bg-body-tertiary border" style="font-size:0.75rem">@overwriteRoleName</span>
+      }
+      @if (CourseInfo is not null)
+      {
+        <span class="badge bg-secondary">@CourseInfo</span>
+        @if (SyncInfo is not null)
+        {
+          <span class="badge bg-info text-dark">@SyncInfo</span>
+        }
+        else
+        {
+          <span class="badge bg-warning text-dark">unsynced</span>
+        }
+
+        @if (UnmappedStudentCount > 0)
+        {
+          <span class="badge bg-warning text-dark">@UnmappedStudentCount unmapped</span>
+        }
+      }
+    </Header>
+
+    <Body>
+      <ChannelDetails Channel="Channel" Assignment="Assignment" RoleOverwrites="RoleOverwrites" MappedIds="MappedIds"
+                      AllMembers="AllMembers" AllRoles="AllRoles" OnMappingChanged="NotifyMappingChanged"
+                      OnDeleteRequested="NotifyDeleteRequested" IsUnsynced="@(SyncInfo is null)" />
+    </Body>
+  </Expandable>
+}
+else
+{
+  <div class="mb-2">
+    <div class="d-flex align-items-center gap-3 py-2 px-3 rounded bg-body-tertiary border border-body-secondary">
+      <GlobeIcon CssClass="text-muted" Title="Visible to everyone" />
+      <span class="fw-medium">#@(Channel.Name?.Value ?? "unnamed")</span>
+      <span class="text-muted small">@Channel.TypeName</span>
+      @if (CourseInfo is not null)
+      {
+        <span class="badge bg-secondary">@CourseInfo</span>
+        @if (SyncInfo is not null)
+        {
+          <span class="badge bg-info text-dark">@SyncInfo</span>
+        }
+        else
+        {
+          <span class="badge bg-warning text-dark">unsynced</span>
+        }
+
+        @if (UnmappedStudentCount > 0)
+        {
+          <span class="badge bg-warning text-dark">@UnmappedStudentCount unmapped</span>
+        }
+      }
+    </div>
+  </div>
+}
+
+@code {
+  [Parameter, EditorRequired]
+  public GuildChannel Channel { get; set; } = null!;
+
+  [Parameter, EditorRequired]
+  public CourseChannelAssignment? Assignment { get; set; }
+
+  [Parameter, EditorRequired]
+  public string? CourseInfo { get; set; }
+
+  [Parameter, EditorRequired]
+  public string? SyncInfo { get; set; }
+
+  [Parameter, EditorRequired]
+  public int UnmappedStudentCount { get; set; }
+
+  [Parameter, EditorRequired]
+  public List<string> RoleOverwrites { get; set; } = [];
+
+  private bool IsPrivate => Channel.PermissionOverwrites?.Any(p => p.Type == PermissionOverwriteType.Role) == true;
+
+  [Parameter, EditorRequired]
+  public List<(SnowBadgerId BadgerId, DiscordUserId DiscordUserId)> MappedIds { get; set; } = [];
+
+  [Parameter, EditorRequired]
+  public List<GuildMember> AllMembers { get; set; } = [];
+
+  [Parameter, EditorRequired]
+  public List<GuildRole> AllRoles { get; set; } = [];
+
+  [Parameter, EditorRequired]
+  public EventCallback OnMappingChanged { get; set; }
+
+  [Parameter, EditorRequired]
+  public EventCallback<CourseChannelAssignment> OnDeleteRequested { get; set; }
+
+  private async Task NotifyMappingChanged() => await OnMappingChanged.InvokeAsync();
+
+  private async Task NotifyDeleteRequested(CourseChannelAssignment assignment)
+  {
+    if (Assignment is not null)
+      await OnDeleteRequested.InvokeAsync(assignment);
+  }
+}

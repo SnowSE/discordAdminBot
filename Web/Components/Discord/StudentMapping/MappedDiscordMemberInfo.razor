@@ -76,9 +76,14 @@
 
   private HashSet<string> MemberRoleIds => DiscordMember.Roles.Select(r => r.Value).ToHashSet();
 
-  private bool HasRequiredRole => MemberRoleIds.Contains(RequiredRoleId.Value);
+  private GuildRole? EveryoneRole => AllRoles.FirstOrDefault(r => r.Name.Value == "@everyone");
 
-  private GuildRole? RequiredRole => AllRoles.FirstOrDefault(r => r.Id == RequiredRoleId);
+  private bool HasRequiredRole =>
+    RequiredRoleId.Value == EveryoneRole?.Id.Value ||
+    MemberRoleIds.Contains(RequiredRoleId.Value);
+
+  private GuildRole? RequiredRole =>
+    RequiredRoleId.Value == EveryoneRole?.Id.Value ? null : AllRoles.FirstOrDefault(r => r.Id == RequiredRoleId);
 
   private List<GuildRole> MemberRoles => AllRoles
       .Where(r => MemberRoleIds.Contains(r.Id.Value) && r.Name.Value != "@everyone")
