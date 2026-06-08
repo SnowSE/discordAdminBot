@@ -41,7 +41,7 @@
   @if (_addingCourse)
   {
     <LoadingAndError>
-      <AddMyCourse OnCancel="() => _addingCourse = false" />
+      <AddMyCourse InitialSearchQuery="_cloudflareEmail" OnCancel="() => _addingCourse = false" />
     </LoadingAndError>
   }
 

@@ -12,7 +12,8 @@
     <button class="btn btn-outline-secondary" @onclick="OnCancel">Cancel</button>
   </div>
 
-  <SearchForCourse AssignedCrns="_assignedCrns" OnCourseSelected="SelectCourse" />
+  <SearchForCourse AssignedCrns="_assignedCrns" InitialSearchQuery="InitialSearchQuery"
+                   OnCourseSelected="SelectCourse" />
 
   @if (_selectedCourse is not null)
   {
@@ -74,6 +75,7 @@
 @code {
   [CascadingParameter] protected LoadingBoundaryContext? Loading { get; set; }
   [Parameter] public EventCallback OnCancel { get; set; }
+  [Parameter] public string? InitialSearchQuery { get; set; }
 
   private HashSet<SnowCrn> _assignedCrns = [];
   private List<GuildChannel> _categories = [];
