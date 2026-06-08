@@ -1,7 +1,6 @@
 @using Web.Models
 @using Web.Models.Snow
 @using Web.Services
-@inject DiscordService Discord
 
 @if (Assignment is null)
 {
@@ -49,23 +48,38 @@
 
 @if (Assignment is not null)
 {
-  <div class="mb-2 mt-3 d-flex justify-content-end">
-    <button class="btn btn-outline-danger" @onclick="RequestDeleteConfirmation">
-      Delete Channel
-    </button>
-    @if (showDeleteConfirmation)
+  <div class="mb-2 mt-3 d-flex justify-content-end gap-2">
+    <ChannelRenameEditor ChannelId="@Channel.Id" CurrentChannelName="@Channel.Name" TermCode="@Assignment.TermCode.Value"
+                         OnRenameComplete="NotifyMappingChanged" />
+
+
+    @if (IsUnsynced)
     {
-      <div class="mt-2">
-        This will permanently delete the Discord channel and remove the course assignment. Continue?
-        <button class="btn btn-danger ms-2" @onclick="ConfirmDelete">
-          Yes, delete
-        </button>
-        <button class="btn btn-outline-secondary ms-1" @onclick="CancelDelete">
-          Cancel
-        </button>
+      <div class="">
+        <RefreshCourseRosters CoursesToSync="@_singleCourseSync" OnSyncCompleted="NotifyMappingChanged" />
       </div>
     }
+    <div>
+
+
+      <button class="btn btn-outline-danger" @onclick="RequestDeleteConfirmation">
+        Delete Channel
+      </button>
+    </div>
   </div>
+
+  @if (showDeleteConfirmation)
+  {
+    <div class="mt-2 d-flex gap-2 justify-content-end">
+      <span>This will permanently delete the Discord channel and remove the course assignment. Continue?</span>
+      <button class="btn btn-danger" @onclick="ConfirmDelete">
+        Yes, delete
+      </button>
+      <button class="btn btn-outline-secondary" @onclick="CancelDelete">
+        Cancel
+      </button>
+    </div>
+  }
 }
 
 @code {
@@ -77,6 +91,9 @@
 
   [Parameter]
   public required CourseChannelAssignment? Assignment { get; set; }
+
+  [Parameter]
+  public required bool IsUnsynced { get; set; }
 
   [Parameter]
   public required List<string> RoleOverwrites { get; set; }
@@ -96,13 +113,23 @@
   [Parameter]
   public EventCallback<CourseChannelAssignment> OnDeleteRequested { get; set; }
 
+  [Parameter]
+  public EventCallback OnSyncCompleted { get; set; }
+
   private bool showDeleteConfirmation;
   private List<ChannelPermissionDetail> resolvedPermissionDetails = [];
+
+  private List<(SnowTermCode TermCode, SnowCrn Crn)> _singleCourseSync =>
+    Assignment is not null ? [(Assignment.TermCode, Assignment.Crn)] : [];
+
 
   protected override void OnParametersSet()
   {
     resolvedPermissionDetails = ResolvePermissionDetails();
+
   }
+
+
 
   private List<ChannelPermissionDetail> ResolvePermissionDetails()
   {

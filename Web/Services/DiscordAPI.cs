@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -7,8 +8,20 @@ namespace Web.Services;
 
 public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
 {
-  private readonly HttpClient _http = httpClientFactory.CreateClient("discord");
+  private readonly HttpClient _http = CreateHttpClient(httpClientFactory, config);
   private readonly string _guildId = config.DiscordGuildId;
+
+  private static HttpClient CreateHttpClient(IHttpClientFactory httpClientFactory, AppConfig config)
+  {
+    var client = httpClientFactory.CreateClient();
+    client.BaseAddress = new Uri("https://discord.com/api/v10/");
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+      "Bot",
+      config.DiscordBotToken
+    );
+    client.DefaultRequestHeaders.Add("User-Agent", "DiscordAdminBot/1.0 (ASP.NET Core)");
+    return client;
+  }
 
   private static readonly JsonSerializerOptions JsonOptions = new()
   {
@@ -28,8 +41,33 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
       "Discord current user response was empty while loading bot identity."
     );
 
-  public async Task<List<GuildMember>> FetchMembersAsync(CancellationToken ct = default) =>
-    await FetchMembersFromDiscordAsync(ct);
+  public async Task<List<GuildMember>> FetchMembersAsync(CancellationToken ct = default)
+  {
+    var allMembers = new List<GuildMember>();
+    var lastMemberId = "0";
+    while (true)
+    {
+      var members = await _http.GetFromJsonAsync<List<GuildMember>>(
+        $"guilds/{_guildId}/members?limit=1000&after={lastMemberId}",
+        JsonOptions,
+        ct
+      );
+
+      if (members is null || members.Count == 0)
+      {
+        break;
+      }
+
+      allMembers.AddRange(members);
+      var lastMember = members.Last();
+      if (lastMember.User is null)
+      {
+        break;
+      }
+      lastMemberId = lastMember.User.Id.Value;
+    }
+    return allMembers;
+  }
 
   public async Task<List<GuildChannel>> FetchChannelsAsync(CancellationToken ct = default) =>
     (
@@ -127,8 +165,8 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     //   | AttachFilesBit
     //   | UseExternalEmojisBit;
 
-    return new List<object>
-    {
+    return
+    [
       new
       {
         id = _guildId,
@@ -143,7 +181,7 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
         allow = ViewChannelBit.ToString(),
         deny = "0",
       },
-    };
+    ];
   }
 
   public async Task<GuildChannel> CreateTextChannelAsync(
@@ -202,9 +240,25 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
     response.EnsureSuccessStatusCode();
   }
 
+  public async Task RenameChannelAsync(
+    string channelId,
+    string name,
+    CancellationToken ct = default
+  )
+  {
+    var request = new HttpRequestMessage(
+      HttpMethod.Patch,
+      new Uri(_http.BaseAddress!, $"channels/{channelId}")
+    );
+    request.Content = JsonContent.Create(new { name }, options: JsonOptions);
+    request.Headers.Add("X-Audit-Log-Reason", "Course name updated from discord admin bot");
+    var response = await _http.SendAsync(request, ct);
+    response.EnsureSuccessStatusCode();
+  }
+
   public async Task<GuildRole> CreateRoleAsync(
     string roleName,
-    int color = 0,
+    int color,
     bool mentionable = false,
     CancellationToken ct = default
   )
@@ -255,38 +309,5 @@ public class DiscordAPI(IHttpClientFactory httpClientFactory, AppConfig config)
       ct
     );
     response.EnsureSuccessStatusCode();
-  }
-
-  private async Task<GuildMember> FetchMemberAsync(string memberId, CancellationToken ct)
-  {
-    return (
-      await _http.GetFromJsonAsync<GuildMember>(
-        $"guilds/{_guildId}/members/{memberId}",
-        JsonOptions,
-        ct
-      )
-    )!;
-  }
-
-  private async Task<List<GuildMember>> FetchMembersFromDiscordAsync(CancellationToken ct)
-  {
-    var members = new List<GuildMember>();
-    DiscordUserId? after = null;
-    var again = true;
-
-    while (again)
-    {
-      var url =
-        $"guilds/{_guildId}/members?limit=1000{(after is not null ? $"&after={after}" : "")}";
-      var page = await _http.GetFromJsonAsync<List<GuildMember>>(url, JsonOptions, ct) ?? [];
-      members.AddRange(page);
-
-      if (page.Count < 1000)
-        again = false;
-
-      after = page[^1].User?.Id;
-    }
-
-    return members;
   }
 }

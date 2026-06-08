@@ -177,6 +177,20 @@ public class DiscordService(DiscordAPI api, DiscordDB db, SnowCourseService snow
     DbDataChanged?.Invoke();
   }
 
+  public async Task RenameChannelAsync(
+    DiscordChannelId channelId,
+    string newName,
+    CancellationToken ct = default
+  )
+  {
+    await api.RenameChannelAsync(channelId.Value, newName, ct);
+
+    var freshChannels = await api.FetchChannelsAsync(ct);
+    await db.SaveChannelsAsync(freshChannels);
+
+    DbDataChanged?.Invoke();
+  }
+
   public async Task DeleteCourseChannelAsync(SnowCrn crn, CancellationToken ct = default)
   {
     var assignments = await GetCourseChannelAssignmentsAsync();

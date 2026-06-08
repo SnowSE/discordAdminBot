@@ -1,0 +1,54 @@
+@token = {{$dotenv DISCORD_BOT_TOKEN}}
+@guildId = {{$dotenv DISCORD_GUILD_ID}}
+
+### Get guild
+GET https://discord.com/api/v10/guilds/{{guildId}}
+Authorization: Bot {{token}}
+
+### Get channels in guild
+GET https://discord.com/api/v10/guilds/{{guildId}}/channels
+Authorization: Bot {{token}}
+
+### Get a specific channel
+@channelId = 1511403187301781544
+
+GET https://discord.com/api/v10/channels/{{channelId}}
+Authorization: Bot {{token}}
+
+### Rename channel
+PATCH https://discord.com/api/v10/channels/{{channelId}}
+Authorization: Bot {{token}}
+Content-Type: application/json
+
+{
+  "name": "telemetry"
+}
+
+### Get bot's guild member record
+# Replace with your bot's user ID
+@botUserId = YOUR_BOT_USER_ID
+
+GET https://discord.com/api/v10/guilds/{{guildId}}/members/{{botUserId}}
+Authorization: Bot {{token}}
+
+### Get guild roles
+GET https://discord.com/api/v10/guilds/{{guildId}}/roles
+Authorization: Bot {{token}}
+
+
+### 
+# @name bot_user
+GET https://discord.com/api/v10/users/@me
+Authorization: Bot {{token}}
+
+###
+
+GET https://discord.com/api/v10/guilds/{{guildId}}/members/{{bot_user.response.body.id}}
+Authorization: Bot {{token}}
+
+
+###
+
+### Add role to bot
+PUT https://discord.com/api/v10/guilds/{{guildId}}/members/1508871861574959255/roles/1456366525224194159
+Authorization: Bot {{token}}

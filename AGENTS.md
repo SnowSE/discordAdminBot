@@ -37,3 +37,7 @@ never use string interpolation in sql statements such as $"INSERT INTO {tableNam
 ask clarifying questions when additional decisions need to be made.
 
 whenever an action involves editing more than one file, always propose a plan to the user. as me clarifying questions about design whenever needed.
+
+do not use comments to describe what the code does, if the code and function names are not descriptive enough on their own, improve function and file names to be descriptive.
+zero comments policy — never write /// XML documentation or // inline explanatory comments. If a function's purpose isn't clear from its name and structure, rename it or split it. No exceptions for "helpful" or "clarifying" comments.
+

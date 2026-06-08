@@ -6,7 +6,7 @@
 <div class=" ">
 
   <input id="course-search-input" @ref="_searchInputElement" class="form-control mb-3"
-         placeholder="Search by name, code, or instructor…" @oninput="OnSearchInput" />
+         placeholder="Search by name, code, or instructor…" @oninput="OnSearchInput" @attributes="_initialAttributes" />
 
   @if (ShowTermSelector)
   {
@@ -49,6 +49,8 @@
   [Parameter] public EventCallback<SnowCourse> OnCourseSelected { get; set; }
   [Parameter] public HashSet<SnowCrn>? AssignedCrns { get; set; }
   [Parameter] public bool ShowTermSelector { get; set; } = true;
+  [Parameter] public SnowTermCode? InitialTermCode { get; set; }
+  [Parameter] public string? InitialSearchQuery { get; set; }
 
   private List<SnowCourse> _courses = [];
   private List<(SnowTermCode TermCode, string DisplayName)> _availableTerms = [];
@@ -58,17 +60,35 @@
   private string _pendingFilter = "";
   private Timer? _debounceTimer;
   private ElementReference _searchInputElement;
+  private IDictionary<string, object>? _initialAttributes;
 
   private static readonly HashSet<string> DefaultDepartments = new(["SE", "CS", "ENGR"]);
 
-  private IEnumerable<SnowCourse> FilteredCourses =>
-    _courses
-      .Where(c => _selectedTermCode is null || c.Term.Code == _selectedTermCode)
-      .Where(c => string.IsNullOrWhiteSpace(_filter) || DefaultDepartments.Contains(c.SubjectCode.Value))
-      .Where(c => MatchesFilter(c, _filter))
-      .OrderBy(c => DefaultDepartments.Contains(c.SubjectCode.Value) ? 0 : 1)
-      .ThenBy(c => c.SubjectCode.Value).ThenBy(c => c.CourseNumber.Value)
-      .Take(string.IsNullOrWhiteSpace(_filter) ? 15 : int.MaxValue);
+  private IEnumerable<SnowCourse> FilteredCourses
+  {
+    get
+    {
+      var query = _filter.Trim();
+      var result = _courses.Where(c => _selectedTermCode is null || c.Term.Code == _selectedTermCode);
+
+      if (string.IsNullOrWhiteSpace(query))
+      {
+        return result
+          .OrderBy(c => DefaultDepartments.Contains(c.SubjectCode.Value) ? 0 : 1)
+          .ThenBy(c => c.SubjectCode.Value).ThenBy(c => c.CourseNumber.Value)
+          .Take(15);
+      }
+
+      // Score every course against the query and filter out zero-score results.
+      var scored = result.Select(c => (Course: c, Score: FuzzyMatcher.ScoreCourse(c, query)));
+      return scored
+        .Where(s => s.Score > 0)
+        .OrderByDescending(s => s.Score)
+        .ThenBy(c => DefaultDepartments.Contains(c.Course.SubjectCode.Value) ? 0 : 1)
+        .ThenBy(c => c.Course.SubjectCode.Value).ThenBy(c => c.Course.CourseNumber.Value)
+        .Select(s => s.Course);
+    }
+  }
 
   protected override void OnInitialized()
   {
@@ -80,6 +100,18 @@
     if (firstRender)
     {
       await _searchInputElement.FocusAsync();
+
+      // Set the input value and clear the marker so it doesn't persist.
+      if (!string.IsNullOrWhiteSpace(InitialSearchQuery))
+      {
+        _filter = InitialSearchQuery;
+        _pendingFilter = InitialSearchQuery;
+        _initialAttributes = new Dictionary<string, object>
+        {
+          ["value"] = InitialSearchQuery,
+        };
+        StateHasChanged();
+      }
     }
   }
 
@@ -111,7 +143,18 @@
     var results = await Task.WhenAll(courseTasks);
     _courses = [.. results.SelectMany(r => r)];
     _availableTerms = terms.Where(t => _courses.Any(c => c.Term.Code == t.TermCode)).ToList();
-    _selectedTermCode ??= _availableTerms.LastOrDefault().TermCode;
+
+    if (_selectedTermCode is null)
+    {
+      if (InitialTermCode is not null && _availableTerms.Any(t => t.TermCode == InitialTermCode))
+      {
+        _selectedTermCode = InitialTermCode;
+      }
+      else if (_availableTerms.Count > currentIndex)
+      {
+        _selectedTermCode = _availableTerms[currentIndex].TermCode;
+      }
+    }
   }
 
   private void OnSearchInput(ChangeEventArgs e)
@@ -140,20 +183,4 @@
     StateHasChanged();
   }
 
-
-  private static bool MatchesFilter(SnowCourse course, string filter)
-  {
-    if (string.IsNullOrWhiteSpace(filter))
-      return true;
-
-    var f = filter.Trim();
-    var primaryName = (course.Instructors.FirstOrDefault(i => i.PrimaryInstructor) ??
-                       course.Instructors.FirstOrDefault())?.Name ?? "";
-    var code = $"{course.SubjectCode.Value} {course.CourseNumber.Value}";
-
-    return course.Name.Contains(f, StringComparison.OrdinalIgnoreCase)
-      || primaryName.Contains(f, StringComparison.OrdinalIgnoreCase)
-      || course.SubjectCode.Value.Contains(f, StringComparison.OrdinalIgnoreCase)
-      || code.Contains(f, StringComparison.OrdinalIgnoreCase);
-  }
 }

@@ -25,7 +25,8 @@ else
           <div class="alert alert-danger py-2 mb-3">@_error</div>
         }
 
-        <SearchForCourse OnCourseSelected="OnCourseSelected" />
+        <SearchForCourse OnCourseSelected="OnCourseSelected" InitialTermCode="_inferredTermCode"
+                         InitialSearchQuery="@_fuzzySearchQuery" />
 
         @if (_selectedCourse is not null)
         {
@@ -63,11 +64,42 @@ else
   private bool _assigning;
   private string? _error;
   private SnowCourse? _selectedCourse;
+  private SnowTermCode? _inferredTermCode;
+  private string? _fuzzySearchQuery;
 
   protected override async Task OnInitializedAsync()
   {
+    _inferredTermCode = TryInferTermCodeFromChannelName(ChannelName);
+    _fuzzySearchQuery = FuzzyMatcher.StripTermSuffix(ChannelName);
     await InvokeAsync(StateHasChanged);
     _loading = false;
+  }
+
+  private static SnowTermCode? TryInferTermCodeFromChannelName(string channelName)
+  {
+    // Matches patterns like "cs-101-2026-spring" → "202610"
+    var parts = channelName.Split('-');
+    for (int i = 0; i < parts.Length; i++)
+    {
+      if (int.TryParse(parts[i], out int year) && year >= 2000 && year <= 2100)
+      {
+        if (i + 1 < parts.Length)
+        {
+          var semesterCode = parts[i + 1] switch
+          {
+            "spring" => "10",
+            "summer" => "30",
+            "fall" => "40",
+            _ => null,
+          };
+
+          if (semesterCode is not null)
+            return new SnowTermCode($"{year}{semesterCode}");
+        }
+      }
+    }
+
+    return null;
   }
 
   private void OnCourseSelected(SnowCourse course)

@@ -19,19 +19,6 @@ builder.Services.ConfigureHttpClientDefaults(clientBuilder =>
 });
 
 builder.Services.AddHttpClient(
-  "discord",
-  client =>
-  {
-    client.BaseAddress = new Uri("https://discord.com/api/v10/");
-    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-      "Bot",
-      appConfig.DiscordBotToken
-    );
-    client.DefaultRequestHeaders.Add("User-Agent", "DiscordAdminBot/1.0 (ASP.NET Core)");
-  }
-);
-
-builder.Services.AddHttpClient(
   "snow",
   client =>
   {

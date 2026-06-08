@@ -1,7 +1,8 @@
 ﻿@using Web.Components.Discord
-@using Web.Components.Snow
 @using Web.Components.Shared
 @using Web.Components.Shared.Icons
+@using Web.Components.Snow
+@using Web.Models.Snow
 @using Web.Services
 @page "/"
 @rendermode InteractiveServer
@@ -25,30 +26,50 @@
           </button>
         }
         <SyncStatus />
-        <button class="btn btn-outline-secondary" @onclick="() => _channelListRef?.OpenSyncAllModal()">
-          <SyncIcon CssClass="me-1" Style="margin-top: -2px" />
-          Sync Courses Assigned to Channels
-        </button>
-        <SyncCourseList />
-      </div>
+        <RefreshCourseRosters CoursesToSync="@_courseChannelAssignments"
+                              OnSyncCompleted="ReloadChannelsAsync" />
+      <SyncCourseList />
     </div>
+  </div>
 
-    @if (_addingCourse)
-    {
-      <LoadingAndError>
-        <AddMyCourse OnCancel="() => _addingCourse = false" />
-      </LoadingAndError>
-    }
-
-    <br>
-    <InviteToServer />
+  @if (_addingCourse)
+  {
     <LoadingAndError>
-      <ChannelList @ref="_channelListRef" />
+      <AddMyCourse OnCancel="() => _addingCourse = false" />
     </LoadingAndError>
-  </ModalProvider>
+  }
+
+  <br>
+  <InviteToServer />
+  <LoadingAndError>
+    <ChannelList @ref="_channelListRef" />
+  </LoadingAndError>
+</ModalProvider>
 </LoadingAndError>
 
 @code {
   private bool _addingCourse;
   private ChannelList? _channelListRef;
+  private List<(SnowTermCode TermCode, SnowCrn Crn)> _courseChannelAssignments = [];
+
+  private string _syncButtonText => $"Refresh {_courseChannelAssignments.Count} Roster{(_courseChannelAssignments.Count != 1 ? "s" : "")}";
+
+  protected override async Task OnInitializedAsync()
+  {
+    DiscordService.DbDataChanged += ReloadChannelsAsync;
+    await ReloadChannelsAsync();
+  }
+
+  public void Dispose()
+  {
+    DiscordService.DbDataChanged -= ReloadChannelsAsync;
+  }
+
+  private async Task ReloadChannelsAsync()
+  {
+    _courseChannelAssignments = (await Discord.GetCourseChannelAssignmentsAsync())
+      .Select(a => (a.TermCode, a.Crn))
+      .ToList();
+    await InvokeAsync(StateHasChanged);
+  }
 }

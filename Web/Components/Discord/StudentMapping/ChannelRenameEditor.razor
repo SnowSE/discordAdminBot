@@ -1,0 +1,138 @@
+@using System.Text.RegularExpressions
+@using Web.Models
+@using Web.Services
+@inject DiscordService Discord
+
+@if (!showRenameEditor)
+{
+  <button class="btn btn-outline-secondary" @onclick="ToggleRenameEditor">
+    @(termSuffixInfo.HasSuffix ? "Remove term suffix" : $"Add term suffix → {BuildTermSuffix()}")
+  </button>
+}
+else
+{
+  <div class="d-flex flex-column gap-1 align-items-end bg-body-secondary p-2 rounded">
+    <div class="d-flex flex-column gap-2 align-items-center">
+      <label class="form-label mb-0 text-nowrap fw-semibold">New Channel Name</label>
+
+      <input class="form-control  font-monospace" style="max-width:250px" @bind="pendingChannelName"
+             @onkeydown="HandleRenameKeydown" />
+      <span class="text-muted small">Renames channel to #@pendingChannelName</span>
+
+      <div class="d-flex gap-2 w-100">
+        <button class="btn btn-primary w-100" @onclick="ConfirmRename" disabled="@renaming">
+          @(renaming ? "Saving..." : "Save")
+        </button>
+        <button class="btn  btn-outline-secondary w-100" @onclick="CancelRename">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@code {
+  [Parameter]
+  public required DiscordChannelId ChannelId { get; set; }
+
+  [Parameter]
+  public required ChannelName CurrentChannelName { get; set; }
+
+  [Parameter]
+  public required string TermCode { get; set; }
+
+  [Parameter]
+  public EventCallback OnRenameComplete { get; set; }
+
+  private bool showRenameEditor;
+  private string pendingChannelName = "";
+  private bool renaming;
+  private ChannelSuffixInfo termSuffixInfo = new(false, "");
+
+  protected override void OnParametersSet()
+  {
+    UpdateSuffixInfo();
+  }
+
+  private record ChannelSuffixInfo(bool HasSuffix, string PrefixWithoutSuffix);
+
+  private static readonly Regex YearSemesterSuffixRegex = new(@"-(\d{4}-(spring|summer|fall))$", RegexOptions.Compiled);
+
+  private void UpdateSuffixInfo()
+  {
+    var currentName = CurrentChannelName.Value;
+    var match = YearSemesterSuffixRegex.Match(currentName);
+    bool hasSuffix = match.Success;
+    string prefixWithoutSuffix = hasSuffix ? currentName[..match.Index] : currentName;
+
+    termSuffixInfo = new(hasSuffix, prefixWithoutSuffix);
+  }
+
+  private void ToggleRenameEditor()
+  {
+    if (termSuffixInfo.HasSuffix)
+    {
+      pendingChannelName = termSuffixInfo.PrefixWithoutSuffix;
+    }
+    else
+    {
+      var currentName = CurrentChannelName.Value;
+      pendingChannelName = $"{currentName}-{BuildTermSuffix()}";
+    }
+    showRenameEditor = true;
+    StateHasChanged();
+  }
+
+  private void CancelRename()
+  {
+    showRenameEditor = false;
+    pendingChannelName = "";
+  }
+
+  private async Task ConfirmRename()
+  {
+    if (string.IsNullOrWhiteSpace(pendingChannelName))
+      return;
+
+    renaming = true;
+    StateHasChanged();
+
+    await Discord.RenameChannelAsync(ChannelId, pendingChannelName);
+    await OnRenameComplete.InvokeAsync();
+
+    renaming = false;
+    showRenameEditor = false;
+    pendingChannelName = "";
+    StateHasChanged();
+  }
+
+  private void HandleRenameKeydown(KeyboardEventArgs args)
+  {
+    if (args.Key == "Escape")
+    {
+      CancelRename();
+    }
+    else if (args.Key == "Enter")
+    {
+      _ = ConfirmRename();
+    }
+  }
+
+  private string BuildTermSuffix()
+  {
+    var tc = TermCode;
+    if (tc.Length < 6)
+      return "";
+
+    var yearPart = tc[..4];
+    var semesterPart = tc[4..];
+    var semesterName = semesterPart switch
+    {
+      "10" => "spring",
+      "30" => "summer",
+      "40" => "fall",
+      _ => semesterPart,
+    };
+    return $"{yearPart}-{semesterName}";
+  }
+}

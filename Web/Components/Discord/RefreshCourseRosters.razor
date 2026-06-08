@@ -1,0 +1,90 @@
+@using Web.Components.Shared.Icons
+@using Web.Models.Snow
+@using Web.Components.Snow
+@using Web.Services
+@inject SnowCourseService _snow
+
+<button type="button" class="@ButtonCssClass" @onclick="OpenModal">
+  <SyncIcon CssClass="me-1" Style="margin-top: -2px" />
+  @ButtonText
+</button>
+
+@code {
+  [CascadingParameter(Name = "ModalContext")]
+  public required Shared.ModalContext Modal { get; set; }
+
+  [Parameter]
+  public required List<(SnowTermCode TermCode, SnowCrn Crn)> CoursesToSync { get; set; }
+
+  [Parameter]
+  public string? ButtonCssClass { get; set; } = "btn btn-outline-secondary";
+
+  [Parameter]
+  public EventCallback OnSyncCompleted { get; set; }
+
+  private string ButtonText => $"Refresh {CoursesToSync.Count} Rosters";
+  private string ModalTitle => $"Refresh {CoursesToSync.Count} Course Rosters";
+
+  private bool _syncing;
+  private string? _error;
+  private string? _token;
+
+  private void OpenModal()
+  {
+    _error = null;
+    _token = "";
+    Modal.Show(BuildDialogContent());
+  }
+
+  private async Task SyncAsync()
+  {
+    if (string.IsNullOrWhiteSpace(_token))
+    {
+      _error = "Enter JWT token before refreshing rosters.";
+      Modal.Show(BuildDialogContent());
+      return;
+    }
+
+    _syncing = true;
+    _error = null;
+    Modal.Show(BuildDialogContent());
+
+    try
+    {
+      foreach (var (termCode, crn) in CoursesToSync)
+      {
+        await _snow.RefreshSectionStudentsAsync(termCode, crn, _token.Trim());
+      }
+
+      Modal.Close();
+      await OnSyncCompleted.InvokeAsync();
+    }
+    catch (Exception ex)
+    {
+      _error = $"Roster sync failed: {ex.Message}";
+      Modal.Show(BuildDialogContent());
+    }
+  }
+
+  private RenderFragment BuildDialogContent() => @<div>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="mb-0">@ModalTitle</h5>
+      <button type="button" class="btn-close" @onclick="() => Modal.Close()"></button>
+    </div>
+    <JwtInput @bind-Token="_token" />
+    @if (_error is not null)
+    {
+      <div class="alert alert-danger py-2 mb-3">@_error</div>
+    }
+    <div class="d-flex gap-2 justify-content-end">
+      <button type="button" class="btn btn-secondary" @onclick="() => Modal.Close()">Cancel</button>
+      <button type="button" class="btn btn-primary" disabled="@_syncing" @onclick="SyncAsync">
+        @if (_syncing)
+        {
+          <span class="spinner-border spinner-border-sm me-1"></span>
+        }
+        @ButtonText
+      </button>
+    </div>
+  </div>;
+}
