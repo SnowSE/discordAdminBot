@@ -33,6 +33,7 @@ builder.Services.AddSingleton<DiscordService>();
 builder.Services.AddSingleton<SnowCourseDb>();
 builder.Services.AddSingleton<SnowCourseService>();
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 var app = builder.Build();
@@ -43,6 +44,56 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseAntiforgery();
+
+app.Use(
+  async (context, next) =>
+  {
+    if (context.Request.Path != "/")
+    {
+      await next(context);
+      return;
+    }
+
+    var cloudflareEmailHeader = context
+      .Request.Headers["Cf-Access-Authenticated-User-Email"]
+      .ToString();
+    var cloudflareJwtHeader = context.Request.Headers["Cf-Access-Jwt-Assertion"].ToString();
+
+    if (string.IsNullOrWhiteSpace(cloudflareEmailHeader))
+    {
+      app.Logger.LogDebug(
+        "Cloudflare Access email header was missing while preparing homepage identity display. Header {HeaderName}",
+        "Cf-Access-Authenticated-User-Email"
+      );
+    }
+    else
+    {
+      app.Logger.LogDebug(
+        "Cloudflare Access email header received for homepage identity display. Header {HeaderName} value {HeaderValue}",
+        "Cf-Access-Authenticated-User-Email",
+        cloudflareEmailHeader
+      );
+    }
+
+    if (string.IsNullOrWhiteSpace(cloudflareJwtHeader))
+    {
+      app.Logger.LogDebug(
+        "Cloudflare Access JWT header was missing while inspecting Cloudflare identity formats. Header {HeaderName}",
+        "Cf-Access-Jwt-Assertion"
+      );
+    }
+    else
+    {
+      app.Logger.LogDebug(
+        "Cloudflare Access JWT header received while inspecting Cloudflare identity formats. Header {HeaderName} characterCount {CharacterCount}",
+        "Cf-Access-Jwt-Assertion",
+        cloudflareJwtHeader.Length
+      );
+    }
+
+    await next(context);
+  }
+);
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
