@@ -223,10 +223,7 @@ public static class FuzzyMatcher
 
   private static double CalculateSimilarity(string firstText, string secondText)
   {
-    int distance = LevenshteinDistance(
-      firstText.ToLowerInvariant(),
-      secondText.ToLowerInvariant()
-    );
+    int distance = LevenshteinDistance(firstText.ToLowerInvariant(), secondText.ToLowerInvariant());
     int maxLength = Math.Max(firstText.Length, secondText.Length);
     return maxLength == 0 ? 1.0 : 1.0 - (double)distance / maxLength;
   }

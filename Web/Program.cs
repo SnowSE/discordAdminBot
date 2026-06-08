@@ -43,33 +43,49 @@ if (!app.Environment.IsDevelopment())
   app.UseExceptionHandler("/Error", createScopeForErrors: true);
 }
 
-app.UseAntiforgery();
-
 app.Use(
   async (context, next) =>
   {
-    if (context.Request.Path != "/")
-    {
-      await next(context);
-      return;
-    }
-
     var cloudflareEmailHeader = context
       .Request.Headers["Cf-Access-Authenticated-User-Email"]
       .ToString();
     var cloudflareJwtHeader = context.Request.Headers["Cf-Access-Jwt-Assertion"].ToString();
 
+    var cloudflareHeaderValues = context
+      .Request.Headers.Where(header =>
+        header.Key.StartsWith("Cf-", StringComparison.OrdinalIgnoreCase)
+      )
+      .Select(header => $"{header.Key}={header.Value}")
+      .ToList();
+
+    app.Logger.LogInformation(
+      "Cloudflare Access request inspection. Method {RequestMethod} scheme {RequestScheme} host {RequestHost} path {RequestPath} query {RequestQuery} remoteIp {RemoteIpAddress} forwardedFor {ForwardedFor} forwardedHost {ForwardedHost} forwardedProto {ForwardedProto} cloudflareHeaderCount {CloudflareHeaderCount} cloudflareHeaders {CloudflareHeaders}",
+      context.Request.Method,
+      context.Request.Scheme,
+      context.Request.Host.ToString(),
+      context.Request.Path,
+      context.Request.QueryString.ToString(),
+      context.Connection.RemoteIpAddress?.ToString() ?? "",
+      context.Request.Headers["X-Forwarded-For"].ToString(),
+      context.Request.Headers["X-Forwarded-Host"].ToString(),
+      context.Request.Headers["X-Forwarded-Proto"].ToString(),
+      cloudflareHeaderValues.Count,
+      string.Join(" | ", cloudflareHeaderValues)
+    );
+
     if (string.IsNullOrWhiteSpace(cloudflareEmailHeader))
     {
-      app.Logger.LogDebug(
-        "Cloudflare Access email header was missing while preparing homepage identity display. Header {HeaderName}",
+      app.Logger.LogInformation(
+        "Cloudflare Access email header was missing while inspecting proxied request. Path {RequestPath} header {HeaderName}",
+        context.Request.Path,
         "Cf-Access-Authenticated-User-Email"
       );
     }
     else
     {
-      app.Logger.LogDebug(
-        "Cloudflare Access email header received for homepage identity display. Header {HeaderName} value {HeaderValue}",
+      app.Logger.LogInformation(
+        "Cloudflare Access email header was received while inspecting proxied request. Path {RequestPath} header {HeaderName} value {HeaderValue}",
+        context.Request.Path,
         "Cf-Access-Authenticated-User-Email",
         cloudflareEmailHeader
       );
@@ -77,23 +93,28 @@ app.Use(
 
     if (string.IsNullOrWhiteSpace(cloudflareJwtHeader))
     {
-      app.Logger.LogDebug(
-        "Cloudflare Access JWT header was missing while inspecting Cloudflare identity formats. Header {HeaderName}",
+      app.Logger.LogInformation(
+        "Cloudflare Access JWT header was missing while inspecting proxied request. Path {RequestPath} header {HeaderName}",
+        context.Request.Path,
         "Cf-Access-Jwt-Assertion"
       );
     }
     else
     {
-      app.Logger.LogDebug(
-        "Cloudflare Access JWT header received while inspecting Cloudflare identity formats. Header {HeaderName} characterCount {CharacterCount}",
+      app.Logger.LogInformation(
+        "Cloudflare Access JWT header was received while inspecting proxied request. Path {RequestPath} header {HeaderName} characterCount {CharacterCount} value {HeaderValue}",
+        context.Request.Path,
         "Cf-Access-Jwt-Assertion",
-        cloudflareJwtHeader.Length
+        cloudflareJwtHeader.Length,
+        cloudflareJwtHeader
       );
     }
 
     await next(context);
   }
 );
+
+app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
