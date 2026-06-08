@@ -41,3 +41,4 @@ whenever an action involves editing more than one file, always propose a plan to
 do not use comments to describe what the code does, if the code and function names are not descriptive enough on their own, improve function and file names to be descriptive.
 zero comments policy — never write /// XML documentation or // inline explanatory comments. If a function's purpose isn't clear from its name and structure, rename it or split it. No exceptions for "helpful" or "clarifying" comments.
 
+`disabled="@_saving || _selectedCourse is null"` <- everything after `@_saving ` is treated as a raw string because of the space, the correct way is `disabled="@(_saving || _selectedCourse is null)"`
