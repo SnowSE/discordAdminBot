@@ -37,8 +37,8 @@ spec:
               memory: "128Mi"
               cpu: "100m"
             limits:
-              memory: "512Mi"
-              cpu: "500m"
+              memory: "4Gi"
+              cpu: "2"
       volumes:
         - name: db-storage
           persistentVolumeClaim:
